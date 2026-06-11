@@ -7,3 +7,15 @@ const sql = neon(process.env.DATABASE_URL!);
 export const db = drizzle(sql, { schema });
 
 export type Database = typeof db;
+
+// Table references
+export const {
+  users,
+  achievements,
+  posts,
+  resumeVersions,
+  portfolioConfig,
+  connectedAccounts,
+  subscriptions,
+  coachConversations,
+} = schema;
