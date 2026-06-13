@@ -136,6 +136,20 @@ export async function POST(
     );
   }
 
+  let decryptedToken: string;
+  try {
+    const { decrypt } = await import("@/lib/encryption");
+    decryptedToken = decrypt(liAccount.accessToken);
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error: "Failed to decrypt token. Please reconnect your account.",
+        reconnect: true,
+      },
+      { status: 401 }
+    );
+  }
+
   // ── Compose post text ─────────────────────────────────────────────────────
   const postBody =
     hashtags.length > 0
@@ -147,7 +161,7 @@ export async function POST(
   if (liAccount.platformUserId) {
     authorUrn = `urn:li:person:${liAccount.platformUserId}`;
   } else {
-    const resolved = await getLinkedInPersonUrn(liAccount.accessToken);
+    const resolved = await getLinkedInPersonUrn(decryptedToken);
     if (!resolved) {
       return NextResponse.json(
         { error: "LinkedIn token expired — please reconnect", reconnect: true },
@@ -189,7 +203,7 @@ export async function POST(
     liResponse = await fetch(LINKEDIN_UGC_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${liAccount.accessToken}`,
+        Authorization: `Bearer ${decryptedToken}`,
         "Content-Type": "application/json",
         "X-Restli-Protocol-Version": "2.0.0",
       },

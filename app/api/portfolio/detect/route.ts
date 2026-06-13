@@ -56,12 +56,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  let decryptedToken: string;
+  try {
+    const { decrypt } = await import("@/lib/encryption");
+    decryptedToken = decrypt(account.accessToken);
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to decrypt token. Please reconnect your account." },
+      { status: 401 }
+    );
+  }
+
   // Fetch root-level repo contents
   const contentsResult = await getRepoContents(
     repoOwner,
     repoName,
     "",
-    account.accessToken
+    decryptedToken
   );
 
   if ("error" in contentsResult) {
@@ -79,7 +90,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       repoOwner,
       repoName,
       "package.json",
-      account.accessToken
+      decryptedToken
     );
     if (!("error" in fileResult) && fileResult[0]?.content) {
       packageJsonContent = fileResult[0].content;
