@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import * as React from "react";
@@ -21,8 +22,8 @@ import { AchievementCompleteEmail } from "@/lib/email/templates";
 // ---------------------------------------------------------------------------
 
 const receiver = new Receiver({
-  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY!,
-  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY!,
+  currentSigningKey: env.QSTASH_CURRENT_SIGNING_KEY!,
+  nextSigningKey: env.QSTASH_NEXT_SIGNING_KEY!,
 });
 
 // ---------------------------------------------------------------------------
@@ -333,7 +334,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (user?.email) {
     try {
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+        env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
       const linkedinPostUrl = linkedinPostId
         ? `${appUrl}/post/${linkedinPostId}/review`
         : undefined;

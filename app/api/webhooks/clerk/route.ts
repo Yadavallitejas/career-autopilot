@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
 import { db } from "@/db";
@@ -34,7 +35,7 @@ type ClerkUserUpdatedEvent = {
 type ClerkWebhookEvent = ClerkUserCreatedEvent | ClerkUserUpdatedEvent;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
+  const WEBHOOK_SECRET = env.CLERK_WEBHOOK_SECRET;
   if (!WEBHOOK_SECRET) {
     console.error("Missing CLERK_WEBHOOK_SECRET env variable");
     return NextResponse.json(

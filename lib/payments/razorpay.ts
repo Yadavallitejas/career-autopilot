@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 /**
  * Razorpay server-side helpers.
  *
@@ -16,8 +17,8 @@ let _razorpay: Razorpay | null = null;
 export function getRazorpay(): Razorpay {
   if (!_razorpay) {
     _razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      key_id: env.RAZORPAY_KEY_ID!,
+      key_secret: env.RAZORPAY_KEY_SECRET!,
     });
   }
   return _razorpay;
@@ -82,7 +83,7 @@ export function verifyPaymentSignature(
   paymentId: string,
   signature: string
 ): boolean {
-  const expectedSig = createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+  const expectedSig = createHmac("sha256", env.RAZORPAY_KEY_SECRET!)
     .update(`${orderId}|${paymentId}`)
     .digest("hex");
   return expectedSig === signature;
@@ -104,7 +105,7 @@ export function verifyWebhookSignature(
     return Razorpay.validateWebhookSignature(
       rawBody,
       signature,
-      process.env.RAZORPAY_WEBHOOK_SECRET!
+      env.RAZORPAY_WEBHOOK_SECRET!
     );
   } catch {
     return false;

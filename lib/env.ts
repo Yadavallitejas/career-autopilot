@@ -57,4 +57,14 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 // Validate at startup — throws during build/boot if required vars are missing
-export const env = envSchema.parse(process.env);
+const parsedEnv = envSchema.safeParse(process.env);
+
+if (!parsedEnv.success) {
+  console.error(
+    "❌ Invalid environment variables:",
+    parsedEnv.error.flatten().fieldErrors
+  );
+  throw new Error("Invalid environment variables");
+}
+
+export const env = parsedEnv.data;

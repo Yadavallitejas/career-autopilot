@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import { createClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
@@ -10,8 +11,8 @@ let _supabase: ReturnType<typeof createClient> | null = null;
 export function getStorageClient(): ReturnType<typeof createClient> {
   if (!_supabase) {
     _supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      env.NEXT_PUBLIC_SUPABASE_URL!,
+      env.SUPABASE_SERVICE_ROLE_KEY!
     );
   }
   return _supabase;
