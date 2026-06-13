@@ -1,3 +1,4 @@
+import Script from "next/script";
 import { requireUser } from "@/lib/get-user";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
@@ -35,6 +36,12 @@ export default async function DashboardLayout({
       </div>
 
       {/* Mobile bottom tab bar rendered inside Sidebar at small breakpoints */}
+
+      {/* Razorpay checkout script — loaded lazily after page is interactive */}
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="lazyOnload"
+      />
     </div>
   );
 }
