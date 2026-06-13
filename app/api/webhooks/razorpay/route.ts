@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { users, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { verifyWebhookSignature } from "@/lib/payments/razorpay";
+import { PaymentFailedEmail } from "@/lib/email/templates";
+import * as React from "react";
 
 // ---------------------------------------------------------------------------
 // Razorpay webhook event shapes (minimal — only what we need)
@@ -177,11 +179,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             try {
               const { sendEmail } = await import("@/lib/email/send");
               // sendEmail currently throws "Not implemented" — swallow gracefully
-              await sendEmail({
+              sendEmail({
                 to: user.email,
                 subject: "Payment failed — Career Autopilot",
-                react: null as unknown as React.ReactElement,
-              });
+                react: React.createElement(PaymentFailedEmail, {
+                  userName: user.email.split("@")[0],
+                  retryUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://career-autopilot.com"}/pricing`,
+                }),
+              }).catch((err) => console.error("[email] Failed to send email", err));
             } catch {
               // Email not yet implemented — log and continue
               console.warn(

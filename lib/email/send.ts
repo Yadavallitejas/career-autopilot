@@ -4,7 +4,17 @@ let _resend: Resend | null = null;
 
 function getResend(): Resend {
   if (!_resend) {
-    _resend = new Resend(process.env.RESEND_API_KEY);
+    if (!process.env.RESEND_API_KEY) {
+      console.error("Missing RESEND_API_KEY, emails will not be sent");
+      // Create a dummy resend client if there's no API key
+      _resend = {
+        emails: {
+          send: async () => ({ id: "mock-id", data: null, error: null }),
+        },
+      } as unknown as Resend;
+    } else {
+      _resend = new Resend(process.env.RESEND_API_KEY);
+    }
   }
   return _resend;
 }
@@ -18,6 +28,26 @@ export async function sendEmail({
   subject: string;
   react: React.ReactElement;
 }): Promise<void> {
-  // TODO: Send email via Resend with React Email template
-  throw new Error("Not implemented");
+  try {
+    const resend = getResend();
+
+    const domain = process.env.NEXT_PUBLIC_APP_URL
+      ? new URL(process.env.NEXT_PUBLIC_APP_URL).hostname
+      : "career-autopilot.com";
+
+    const { error, data } = await resend.emails.send({
+      from: `Career Autopilot <noreply@${domain}>`,
+      to,
+      subject,
+      react,
+    });
+
+    if (error) {
+      console.error("[email] Send failed:", error);
+    } else {
+      console.log(`[email] Sent successfully to ${to}, id: ${data?.id}`);
+    }
+  } catch (err) {
+    console.error("[email] Unexpected error during sendEmail:", err);
+  }
 }

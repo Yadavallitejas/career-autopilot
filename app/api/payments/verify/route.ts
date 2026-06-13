@@ -4,6 +4,9 @@ import { db } from "@/db";
 import { users, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { verifyPaymentSignature, PLAN_PRICES } from "@/lib/payments/razorpay";
+import { sendEmail } from "@/lib/email/send";
+import { UpgradeConfirmationEmail } from "@/lib/email/templates";
+import * as React from "react";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   // ── Auth ─────────────────────────────────────────────────────────────────
@@ -108,6 +111,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         },
       });
   });
+
+  // Send Upgrade Confirmation Email
+  if (user && user.id) {
+    const userEmailRow = await db.select({ email: users.email }).from(users).where(eq(users.id, user.id)).limit(1);
+    if (userEmailRow[0] && userEmailRow[0].email) {
+      sendEmail({
+        to: userEmailRow[0].email,
+        subject: "Upgrade Confirmation - Career Autopilot",
+        react: React.createElement(UpgradeConfirmationEmail, {
+          userName: userEmailRow[0].email.split("@")[0],
+          plan: planType,
+          nextBillingDate: currentPeriodEnd,
+        }),
+      }).catch((err) => console.error("[email] Failed to send UpgradeConfirmationEmail", err));
+    }
+  }
 
   return NextResponse.json({ success: true });
 }
