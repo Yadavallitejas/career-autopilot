@@ -40,12 +40,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  let decryptedToken: string;
+  try {
+    const { decrypt } = await import("@/lib/encryption");
+    decryptedToken = decrypt(account.accessToken);
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to decrypt token. Please reconnect your account." },
+      { status: 401 }
+    );
+  }
+
   const page = parseInt(
     req.nextUrl.searchParams.get("page") ?? "1",
     10
   );
 
-  const result = await listUserRepos(account.accessToken, page);
+  const result = await listUserRepos(decryptedToken, page);
 
   if ("error" in result) {
     return NextResponse.json(

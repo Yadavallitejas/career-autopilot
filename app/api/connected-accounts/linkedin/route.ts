@@ -105,7 +105,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const encryptedToken = await encrypt(accessToken);
+  const encryptedToken = encrypt(accessToken);
   const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
   // Upsert: delete existing + insert fresh (cleaner than onConflict with no unique index)
