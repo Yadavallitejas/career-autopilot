@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import {
   Rocket,
   Brain,
@@ -70,19 +71,32 @@ function Navbar() {
         </div>
 
         {/* Right — desktop */}
-        <div className="hidden md:flex items-center gap-3">
-          <Link
-            href="/sign-in"
-            className="text-sm text-zinc-400 hover:text-white px-4 py-2 rounded-lg transition-colors font-medium"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/sign-up"
-            className="text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 px-4 py-2 rounded-lg transition-all duration-200 shadow-lg shadow-emerald-500/20"
-          >
-            Get Started
-          </Link>
+        <div className="hidden md:flex items-center gap-4">
+          <SignedOut>
+            <Link
+              href="/sign-in"
+              className="text-sm text-zinc-400 hover:text-white px-4 py-2 rounded-lg transition-colors font-medium"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/sign-up"
+              className="text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 px-4 py-2 rounded-lg transition-all duration-200 shadow-lg shadow-emerald-500/20"
+            >
+              Get Started
+            </Link>
+          </SignedOut>
+          <SignedIn>
+            <Link
+              href="/dashboard"
+              className="text-sm text-zinc-400 hover:text-white px-4 py-2 rounded-lg transition-colors font-medium"
+            >
+              Dashboard
+            </Link>
+            <div className="h-8 w-8 flex items-center justify-center">
+              <UserButton afterSignOutUrl="/" />
+            </div>
+          </SignedIn>
         </div>
 
         {/* Hamburger — mobile */}
@@ -109,18 +123,31 @@ function Navbar() {
             </a>
           ))}
           <div className="flex flex-col gap-2 pt-2 border-t border-zinc-800">
-            <Link
-              href="/sign-in"
-              className="text-center text-sm text-zinc-400 hover:text-white py-2 rounded-lg border border-zinc-800 transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/sign-up"
-              className="text-center text-sm font-semibold bg-emerald-500 text-zinc-950 py-2.5 rounded-lg"
-            >
-              Get Started
-            </Link>
+            <SignedOut>
+              <Link
+                href="/sign-in"
+                className="text-center text-sm text-zinc-400 hover:text-white py-2 rounded-lg border border-zinc-800 transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/sign-up"
+                className="text-center text-sm font-semibold bg-emerald-500 text-zinc-950 py-2.5 rounded-lg"
+              >
+                Get Started
+              </Link>
+            </SignedOut>
+            <SignedIn>
+              <Link
+                href="/dashboard"
+                className="text-center text-sm text-zinc-400 hover:text-white py-2 rounded-lg border border-zinc-800 transition-colors"
+              >
+                Dashboard
+              </Link>
+              <div className="flex justify-center py-2">
+                <UserButton afterSignOutUrl="/" />
+              </div>
+            </SignedIn>
           </div>
         </div>
       )}
@@ -178,16 +205,30 @@ function HeroSection() {
 
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row items-center gap-3 mt-2">
-          <Link
-            href="/sign-up"
-            className="group flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-7 py-3.5 rounded-xl text-base transition-all duration-200 shadow-xl shadow-emerald-500/25"
-          >
-            Start for free
-            <ArrowRight
-              size={16}
-              className="group-hover:translate-x-0.5 transition-transform"
-            />
-          </Link>
+          <SignedOut>
+            <Link
+              href="/sign-up"
+              className="group flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-7 py-3.5 rounded-xl text-base transition-all duration-200 shadow-xl shadow-emerald-500/25"
+            >
+              Start for free
+              <ArrowRight
+                size={16}
+                className="group-hover:translate-x-0.5 transition-transform"
+              />
+            </Link>
+          </SignedOut>
+          <SignedIn>
+            <Link
+              href="/dashboard"
+              className="group flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold px-7 py-3.5 rounded-xl text-base transition-all duration-200 shadow-xl shadow-emerald-500/25"
+            >
+              Go to Dashboard
+              <ArrowRight
+                size={16}
+                className="group-hover:translate-x-0.5 transition-transform"
+              />
+            </Link>
+          </SignedIn>
           <a
             href="#features"
             className="flex items-center gap-2 text-zinc-300 hover:text-white border border-zinc-700 hover:border-zinc-500 px-7 py-3.5 rounded-xl text-base font-semibold transition-all duration-200"

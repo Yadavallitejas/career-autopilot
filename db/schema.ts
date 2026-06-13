@@ -11,7 +11,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -97,8 +97,8 @@ export const posts = pgTable(
       .references(() => achievements.id, { onDelete: "cascade" }),
     platform: platformEnum("platform").notNull(),
     draftText: text("draft_text").notNull(),
-    hashtags: text("hashtags").array().default([]),
-    mediaUrls: text("media_urls").array().default([]),
+    hashtags: text("hashtags").array().default(sql`'{}'::text[]`),
+    mediaUrls: text("media_urls").array().default(sql`'{}'::text[]`),
     mediaPrompt: text("media_prompt"),
     status: postStatusEnum("status").notNull().default("draft"),
     publishedUrl: text("published_url"),
