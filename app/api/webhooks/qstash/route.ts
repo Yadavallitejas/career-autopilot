@@ -14,7 +14,7 @@ import { classifyAchievement } from "@/lib/ai/classify";
 import { draftLinkedInPost, draftXPost } from "@/lib/ai/draft-post";
 import { addBulletToResume, buildResumeFromData } from "@/lib/resume/builder";
 import { sendEmail } from "@/lib/email/send";
-import { ProcessingCompleteEmail } from "@/lib/email/templates";
+import { AchievementCompleteEmail } from "@/lib/email/templates";
 
 // ---------------------------------------------------------------------------
 // Singleton receiver (signing keys never change at runtime)
@@ -338,17 +338,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         ? `${appUrl}/post/${linkedinPostId}/review`
         : undefined;
 
-      await sendEmail({
+      sendEmail({
         to: user.email,
         subject: "✅ Your achievement has been processed — Career Autopilot",
-        react: React.createElement(ProcessingCompleteEmail, {
+        react: React.createElement(AchievementCompleteEmail, {
           userName: user.email.split("@")[0],
-          achievementTitle: achievement.rawInput.slice(0, 80),
-          linkedinPostUrl,
+          achievementType: classifyResult.achievementType,
+          reviewUrl: linkedinPostUrl,
           resumeUpdated,
           portfolioUpdated: classifyResult.portfolioWorthy,
         }),
-      });
+      }).catch((err) => console.error("[email] Failed to send email", err));
 
       logStep("Step 9: Email sent", pipelineStart);
     } catch (emailErr) {

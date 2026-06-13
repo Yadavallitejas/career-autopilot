@@ -3,6 +3,9 @@ import { Webhook } from "svix";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { sendEmail } from "@/lib/email/send";
+import { WelcomeEmail } from "@/lib/email/templates";
+import * as React from "react";
 
 type EmailAddress = {
   email_address: string;
@@ -91,6 +94,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         email,
         plan: "free",
       });
+
+      // Send Welcome Email
+      sendEmail({
+        to: email,
+        subject: "Welcome to Career Autopilot",
+        react: React.createElement(WelcomeEmail, {
+          userName: email.split("@")[0],
+        }),
+      }).catch((err) => console.error("[email] Failed to send WelcomeEmail", err));
 
       console.log(`[clerk-webhook] Created user clerkId=${id}`);
     } else if (evt.type === "user.updated") {
