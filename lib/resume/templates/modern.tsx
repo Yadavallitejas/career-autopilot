@@ -11,7 +11,8 @@ const styles = StyleSheet.create({
   main: { flex: 1, padding: 30 },
 });
 
-export function ModernTemplate({ data }: { data: ResumeData }) {
+export function ModernTemplate({ data, isPro }: { data: ResumeData; isPro: boolean }) {
+  void isPro; // reserved for future watermark/pro feature parity with ClassicTemplate
   // TODO: Implement modern two-column resume template with @react-pdf/renderer
   return (
     <Document>
