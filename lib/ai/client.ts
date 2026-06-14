@@ -6,25 +6,43 @@ import OpenAI from "openai";
 // Singleton clients — instantiated once at module level, reused per request
 // ---------------------------------------------------------------------------
 
-const anthropic = new Anthropic({
-  apiKey: env.ANTHROPIC_API_KEY,
-});
+let _anthropic: Anthropic | null = null;
+function getAnthropicClientInstance(): Anthropic {
+  if (!_anthropic) {
+    if (!env.ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY is not configured");
+    }
+    _anthropic = new Anthropic({
+      apiKey: env.ANTHROPIC_API_KEY,
+    });
+  }
+  return _anthropic;
+}
 
-const grok = new OpenAI({
-  apiKey: env.XAI_API_KEY,
-  baseURL: env.XAI_BASE_URL ?? "https://api.x.ai/v1",
-});
+let _grok: OpenAI | null = null;
+function getGrokClientInstance(): OpenAI {
+  if (!_grok) {
+    if (!env.XAI_API_KEY) {
+      throw new Error("XAI_API_KEY is not configured");
+    }
+    _grok = new OpenAI({
+      apiKey: env.XAI_API_KEY,
+      baseURL: env.XAI_BASE_URL ?? "https://api.x.ai/v1",
+    });
+  }
+  return _grok;
+}
 
 // ---------------------------------------------------------------------------
 // Exported getters (kept for backward compat with existing callers)
 // ---------------------------------------------------------------------------
 
 export function getAnthropicClient(): Anthropic {
-  return anthropic;
+  return getAnthropicClientInstance();
 }
 
 export function getXaiClient(): OpenAI {
-  return grok;
+  return getGrokClientInstance();
 }
 
 // ---------------------------------------------------------------------------
@@ -64,37 +82,43 @@ export async function callAI({
   prompt,
   maxTokens = 1000,
 }: CallAIOptions): Promise<string> {
-  // 1. Try Anthropic (Claude Sonnet 4.5)
-  try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: prompt }],
-    });
+  // 1. Try Anthropic (Claude Sonnet 4.5) if key is present
+  if (env.ANTHROPIC_API_KEY) {
+    try {
+      const client = getAnthropicClientInstance();
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: "user", content: prompt }],
+      });
 
-    const firstBlock = response.content[0];
-    return firstBlock?.type === "text" ? firstBlock.text : "";
-  } catch (err) {
-    if (err instanceof APIError && err.status !== undefined) {
-      if (FALLBACK_STATUSES.has(err.status)) {
-        // Fall through to Grok
-        console.warn(
-          `[callAI] Anthropic returned ${err.status} — falling back to Grok`
-        );
+      const firstBlock = response.content[0];
+      return firstBlock?.type === "text" ? firstBlock.text : "";
+    } catch (err) {
+      if (err instanceof APIError && err.status !== undefined) {
+        if (FALLBACK_STATUSES.has(err.status)) {
+          // Fall through to Grok
+          console.warn(
+            `[callAI] Anthropic returned ${err.status} — falling back to Grok`
+          );
+        } else {
+          // Hard failure (auth, bad request, etc.) — throw immediately
+          throw err;
+        }
       } else {
-        // Hard failure (auth, bad request, etc.) — throw immediately
-        throw err;
+        // Non-HTTP error (network, timeout, etc.) — fall back to Grok
+        console.warn(`[callAI] Anthropic call failed — falling back to Grok:`, err);
       }
-    } else {
-      // Non-HTTP error (network, timeout, etc.) — throw immediately
-      throw err;
     }
+  } else {
+    console.warn(`[callAI] ANTHROPIC_API_KEY not set — falling back to Grok`);
   }
 
   // 2. Grok fallback (xAI, OpenAI-compatible)
   try {
-    const response = await grok.chat.completions.create({
+    const client = getGrokClientInstance();
+    const response = await client.chat.completions.create({
       model: "grok-3-mini",
       max_tokens: maxTokens,
       messages: [
@@ -140,8 +164,8 @@ export async function callAi({
   const contextBlock =
     priorContext.length > 0
       ? priorContext
-          .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-          .join("\n\n") + "\n\n"
+        .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+        .join("\n\n") + "\n\n"
       : "";
 
   const prompt = contextBlock + (lastMessage?.content ?? "");

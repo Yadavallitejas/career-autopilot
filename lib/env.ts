@@ -20,22 +20,22 @@ const envSchema = z.object({
   QSTASH_NEXT_SIGNING_KEY: z.string().min(1).optional(),
 
   // Supabase
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
   // AI
-  ANTHROPIC_API_KEY: z.string().min(1),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
   XAI_API_KEY: z.string().min(1).optional(),
   XAI_BASE_URL: z.string().url().default("https://api.x.ai/v1"),
 
   // Email
-  RESEND_API_KEY: z.string().min(1),
+  RESEND_API_KEY: z.string().min(1).optional(),
   RESEND_FROM_EMAIL: z.string().email().default("noreply@careerautopilot.in"),
 
   // Payments
-  RAZORPAY_KEY_ID: z.string().min(1),
-  RAZORPAY_KEY_SECRET: z.string().min(1),
+  RAZORPAY_KEY_ID: z.string().min(1).optional(),
+  RAZORPAY_KEY_SECRET: z.string().min(1).optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().min(1).optional(),
 
   // GitHub
@@ -56,8 +56,16 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+// Preprocess empty strings to undefined so .optional() works as expected
+const envToParse = Object.fromEntries(
+  Object.entries(process.env).map(([key, value]) => [
+    key,
+    value === "" ? undefined : value,
+  ])
+);
+
 // Validate at startup — throws during build/boot if required vars are missing
-const parsedEnv = envSchema.safeParse(process.env);
+const parsedEnv = envSchema.safeParse(envToParse);
 
 if (!parsedEnv.success) {
   console.error(
