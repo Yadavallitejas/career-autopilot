@@ -1,10 +1,11 @@
+import { env } from "@/lib/env";
 import { Resend } from "resend";
 
 let _resend: Resend | null = null;
 
 function getResend(): Resend {
   if (!_resend) {
-    if (!process.env.RESEND_API_KEY) {
+    if (!env.RESEND_API_KEY) {
       console.error("Missing RESEND_API_KEY, emails will not be sent");
       // Create a dummy resend client if there's no API key
       _resend = {
@@ -13,7 +14,7 @@ function getResend(): Resend {
         },
       } as unknown as Resend;
     } else {
-      _resend = new Resend(process.env.RESEND_API_KEY);
+      _resend = new Resend(env.RESEND_API_KEY);
     }
   }
   return _resend;
@@ -31,8 +32,8 @@ export async function sendEmail({
   try {
     const resend = getResend();
 
-    const domain = process.env.NEXT_PUBLIC_APP_URL
-      ? new URL(process.env.NEXT_PUBLIC_APP_URL).hostname
+    const domain = env.NEXT_PUBLIC_APP_URL
+      ? new URL(env.NEXT_PUBLIC_APP_URL).hostname
       : "career-autopilot.com";
 
     const { error, data } = await resend.emails.send({

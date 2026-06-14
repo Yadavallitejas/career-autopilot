@@ -1,10 +1,11 @@
+import { env } from "@/lib/env";
 import { Client } from "@upstash/qstash";
 
 let _qstash: Client | null = null;
 
 function getQstash(): Client {
   if (!_qstash) {
-    _qstash = new Client({ token: process.env.QSTASH_TOKEN! });
+    _qstash = new Client({ token: env.QSTASH_TOKEN! });
   }
   return _qstash;
 }
@@ -23,7 +24,7 @@ export async function enqueueAchievementJob(
   job: AchievementJob
 ): Promise<string> {
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   const client = getQstash();
   const result = await client.publishJSON({

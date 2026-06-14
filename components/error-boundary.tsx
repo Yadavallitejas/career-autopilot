@@ -12,7 +12,7 @@ interface ErrorBoundaryProps {
   fallback?: React.ReactNode;
 }
 
-export class ErrorBoundary extends React.Component<
+export default class ErrorBoundary extends React.Component<
   ErrorBoundaryProps,
   ErrorBoundaryState
 > {
@@ -33,8 +33,15 @@ export class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         this.props.fallback ?? (
-          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 text-muted-foreground">
-            <p className="text-sm">Something went wrong.</p>
+          <div className="flex min-h-[200px] flex-col items-center justify-center gap-4 text-muted-foreground p-8">
+            <h2 className="text-lg font-semibold text-foreground">Something went wrong</h2>
+            <p className="text-sm">{this.state.error?.message || "An unexpected error occurred"}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 mt-4 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors"
+            >
+              Reload page
+            </button>
           </div>
         )
       );

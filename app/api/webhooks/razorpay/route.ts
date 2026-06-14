@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users, subscriptions } from "@/db/schema";
@@ -184,7 +185,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 subject: "Payment failed — Career Autopilot",
                 react: React.createElement(PaymentFailedEmail, {
                   userName: user.email.split("@")[0],
-                  retryUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://career-autopilot.com"}/pricing`,
+                  retryUrl: `${env.NEXT_PUBLIC_APP_URL ?? "https://career-autopilot.com"}/pricing`,
                 }),
               }).catch((err) => console.error("[email] Failed to send email", err));
             } catch {

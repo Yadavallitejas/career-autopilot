@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── Exchange code for access token ────────────────────────────────────────
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/connected-accounts/linkedin`;
+  const redirectUri = `${env.NEXT_PUBLIC_APP_URL}/api/connected-accounts/linkedin`;
 
   let accessToken: string;
   let expiresIn: number;
@@ -41,8 +42,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           grant_type: "authorization_code",
           code,
           redirect_uri: redirectUri,
-          client_id: process.env.LINKEDIN_CLIENT_ID!,
-          client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+          client_id: env.LINKEDIN_CLIENT_ID!,
+          client_secret: env.LINKEDIN_CLIENT_SECRET!,
         }).toString(),
         cache: "no-store",
       }

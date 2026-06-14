@@ -17,30 +17,27 @@ export interface ApiErrorBody {
 
 export class ApiError extends Error {
   constructor(
-    public readonly code: ApiErrorCode,
-    message: string,
-    public readonly status: number,
-    public readonly details?: unknown
+    public statusCode: number,
+    public code: string,
+    message: string
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
-export function errorResponse(
-  code: ApiErrorCode,
-  message: string,
-  status: number,
-  details?: unknown
-): NextResponse<ApiErrorBody> {
-  return NextResponse.json({ error: code, message, details }, { status });
-}
-
-export function handleApiError(error: unknown): NextResponse<ApiErrorBody> {
+export function handleApiError(error: unknown): NextResponse {
+  const requestId = crypto.randomUUID();
   if (error instanceof ApiError) {
-    return errorResponse(error.code, error.message, error.status, error.details);
+    return NextResponse.json(
+      { error: { code: error.code, message: error.message, requestId } },
+      { status: error.statusCode }
+    );
   }
 
-  console.error("Unhandled API error:", error);
-  return errorResponse("INTERNAL_ERROR", "An unexpected error occurred", 500);
+  console.error("Unhandled API error:", error, { requestId });
+  return NextResponse.json(
+    { error: { code: "INTERNAL_ERROR", message: "Something went wrong", requestId } },
+    { status: 500 }
+  );
 }

@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
@@ -61,6 +62,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     orderId: order.id,
     amount: order.amount,
     currency: "INR",
-    keyId: process.env.RAZORPAY_KEY_ID,
+    keyId: env.RAZORPAY_KEY_ID,
   });
 }

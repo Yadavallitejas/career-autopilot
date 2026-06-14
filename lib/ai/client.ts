@@ -1,3 +1,4 @@
+import { env } from "@/lib/env";
 import Anthropic, { APIError } from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
@@ -6,12 +7,12 @@ import OpenAI from "openai";
 // ---------------------------------------------------------------------------
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: env.ANTHROPIC_API_KEY,
 });
 
 const grok = new OpenAI({
-  apiKey: process.env.XAI_API_KEY,
-  baseURL: process.env.XAI_BASE_URL ?? "https://api.x.ai/v1",
+  apiKey: env.XAI_API_KEY,
+  baseURL: env.XAI_BASE_URL ?? "https://api.x.ai/v1",
 });
 
 // ---------------------------------------------------------------------------
