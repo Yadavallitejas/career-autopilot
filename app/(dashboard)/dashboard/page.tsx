@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { requireUser } from "@/lib/get-user";
-import { db } from "@/db";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import {
+  users,
   achievements,
   posts,
   resumeVersions,
 } from "@/db/schema";
-import { eq, desc, count } from "drizzle-orm";
+import { db } from "@/db";
+import { eq, desc, count, and, gte, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { Rocket, Plus, ExternalLink } from "lucide-react";
 import {
@@ -24,7 +26,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -40,48 +41,53 @@ type AchievementWithPosts = Achievement & { posts: Post[] };
 // Data fetching (server-side)
 // ---------------------------------------------------------------------------
 
-async function getDashboardData(userId: string) {
-  const [
-    [achievementCount],
-    [postCount],
-    [resumeCount],
-    recentAchievements,
-  ] = await Promise.all([
-    // Total achievements
+async function getDashboardData(userId: string, startOfMonth: Date) {
+  return Promise.all([
+    // 1. Total achievements (all statuses)
     db
       .select({ value: count() })
       .from(achievements)
-      .where(eq(achievements.userId, userId)),
+      .where(eq(achievements.userId, userId))
+      .then(([r]) => r?.value ?? 0),
 
-    // Total drafted posts
+    // 2. Total drafted posts
     db
       .select({ value: count() })
       .from(posts)
       .innerJoin(achievements, eq(posts.achievementId, achievements.id))
-      .where(eq(achievements.userId, userId)),
+      .where(eq(achievements.userId, userId))
+      .then(([r]) => r?.value ?? 0),
 
-    // Resume versions
+    // 3. Resume versions
     db
       .select({ value: count() })
       .from(resumeVersions)
-      .where(eq(resumeVersions.userId, userId)),
+      .where(eq(resumeVersions.userId, userId))
+      .then(([r]) => r?.value ?? 0),
 
-    // Last 5 achievements with posts
+    // 4. Completed achievements this calendar month (free-tier gate)
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(achievements)
+      .where(
+        and(
+          eq(achievements.userId, userId),
+          eq(achievements.status, 'complete'),
+          gte(achievements.createdAt, startOfMonth)
+        )
+      )
+      .then(([r]) => r?.count ?? 0),
+
+    // 5. Last 5 achievements with posts
     db.query.achievements.findMany({
       where: eq(achievements.userId, userId),
       orderBy: [desc(achievements.createdAt)],
       limit: 5,
       with: { posts: true },
-    }),
+    }) as Promise<AchievementWithPosts[]>,
   ]);
-
-  return {
-    achievementCount: achievementCount?.value ?? 0,
-    postCount: postCount?.value ?? 0,
-    resumeCount: resumeCount?.value ?? 0,
-    recentAchievements: recentAchievements as AchievementWithPosts[],
-  };
 }
+
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -106,6 +112,67 @@ function StatCard({
       <CardContent className="px-5 pb-5">
         <p className="text-3xl font-bold text-white tabular-nums">{value}</p>
         {sub && <p className="text-xs text-zinc-500 mt-1">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+const FREE_LIMIT = 3;
+
+function MonthlyUsageCard({
+  completedCount,
+  plan,
+}: {
+  completedCount: number;
+  plan: "free" | "pro" | "team";
+}) {
+  const isFree = plan === "free";
+  const pct = isFree ? Math.min((completedCount / FREE_LIMIT) * 100, 100) : 100;
+  const barColor =
+    completedCount >= FREE_LIMIT && isFree
+      ? "bg-amber-500"
+      : "bg-emerald-500";
+
+  return (
+    <Card className="bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 transition-colors">
+      <CardHeader className="pb-2 pt-5 px-5">
+        <CardTitle className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+          Monthly usage
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-5 pb-5 space-y-2">
+        {/* Count + bar */}
+        <div className="flex items-center gap-3">
+          {/* Inline progress bar — no extra dependency */}
+          <div className="flex-1 h-2 rounded-full bg-zinc-800 overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-500", barColor)}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <span className="text-sm font-semibold text-white tabular-nums shrink-0">
+            {isFree ? `${completedCount}/${FREE_LIMIT}` : "∞"}
+          </span>
+        </div>
+
+        {/* Human-readable label */}
+        <p className="text-xs text-zinc-500">
+          {isFree
+            ? completedCount === 0
+              ? `0 of ${FREE_LIMIT} achievements used this month`
+              : `${completedCount} of ${FREE_LIMIT} achievement${completedCount !== 1 ? "s" : ""} used this month`
+            : "Unlimited on Pro"}
+        </p>
+
+        {/* Upgrade nudge for free users near/at limit */}
+        {isFree && completedCount >= FREE_LIMIT && (
+          <Link
+            href="/settings?tab=billing"
+            className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+          >
+            Upgrade to Pro for unlimited →
+          </Link>
+        )}
       </CardContent>
     </Card>
   );
@@ -330,14 +397,36 @@ function TableSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default async function DashboardPage() {
-  const user = await requireUser();
-  const { achievementCount, postCount, resumeCount, recentAchievements } =
-    await getDashboardData(user.id);
+  // Auth is synchronous (reads cookie) — use it to get clerkId instantly,
+  // then fire user resolution + all DB queries in parallel.
+  const { userId: clerkId } = auth();
+  if (!clerkId) redirect('/sign-in');
 
-  const lastUpdated =
-    recentAchievements.length > 0
-      ? format(new Date(recentAchievements[0].createdAt), "MMM d, yyyy")
-      : "Never";
+  // Start of current calendar month (UTC midnight) — computed once here
+  // so getDashboardData doesn't need to redo it
+  const startOfMonth = new Date();
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
+
+  // Resolve DB user row in parallel with a temporary fetch scoped to clerkId.
+  // We can't start the userId-scoped queries until we have user.id, so we
+  // resolve the user first, then kick off all data in parallel.
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkId, clerkId))
+    .limit(1);
+
+  if (!user) redirect('/sign-in');
+
+  // All 5 dashboard queries fire in parallel — single round-trip to Neon
+  const [
+    achievementCount,
+    postCount,
+    resumeCount,
+    monthlyCompletedCount,
+    recentAchievements,
+  ] = await getDashboardData(user.id, startOfMonth);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 pb-24 md:pb-6">
@@ -388,10 +477,9 @@ export default async function DashboardPage() {
             value={resumeCount}
             sub={resumeCount > 0 ? "Active tracking" : "None yet"}
           />
-          <StatCard
-            label="Last updated"
-            value={lastUpdated}
-            sub="Most recent entry"
+          <MonthlyUsageCard
+            completedCount={monthlyCompletedCount}
+            plan={user.plan}
           />
         </div>
       </Suspense>

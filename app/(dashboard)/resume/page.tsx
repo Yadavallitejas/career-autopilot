@@ -2,7 +2,29 @@ import { requireUser } from "@/lib/get-user";
 import { db } from "@/db";
 import { resumeVersions } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { ResumeViewer } from "@/components/resume/resume-viewer";
+import dynamic from "next/dynamic";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Dynamically imported — 30KB component with LCS diff, modals, and upload logic.
+// ssr:false keeps it off the server bundle and out of the critical render path.
+const ResumeViewer = dynamic(
+  () => import("@/components/resume/resume-viewer").then((m) => ({ default: m.ResumeViewer })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-col md:flex-row h-full min-h-[calc(100vh-4rem)]">
+        <div className="w-full md:w-[280px] border-r border-zinc-800 p-4 space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-16 rounded-lg" />
+          ))}
+        </div>
+        <div className="flex-1 p-4">
+          <Skeleton className="h-[700px] rounded-lg" />
+        </div>
+      </div>
+    ),
+  }
+);
 
 export const metadata = {
   title: "Resume — Career Autopilot",

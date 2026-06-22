@@ -1,6 +1,23 @@
 import { z } from "zod";
 import { callAI } from "./client";
 import { CLASSIFY_SYSTEM_PROMPT } from "./prompts";
+import { Redis } from "@upstash/redis";
+import crypto from "crypto";
+
+// ---------------------------------------------------------------------------
+// Redis client — module-level singleton, reused across invocations
+// ---------------------------------------------------------------------------
+
+let _redis: Redis | null = null;
+
+function getRedis(): Redis | null {
+  if (_redis) return _redis;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null; // Redis not configured — skip caching
+  _redis = new Redis({ url, token });
+  return _redis;
+}
 
 // ---------------------------------------------------------------------------
 // Schema — defines and validates the AI response shape
@@ -89,7 +106,29 @@ export async function classifyAchievement({
   existingResumeText: string;
   existingPortfolioProjects: string[];
 }): Promise<ClassificationOutput> {
-  // Build prompt
+  // ---------------------------------------------------------------------------
+  // 0. Cache check — hash the raw input for the key (first 16 hex chars of SHA-256)
+  // ---------------------------------------------------------------------------
+  const redis = getRedis();
+  const cacheKey = `classify:${crypto
+    .createHash('sha256')
+    .update(rawInput)
+    .digest('hex')
+    .slice(0, 16)}`;
+
+  if (redis) {
+    try {
+      const cached = await redis.get<string>(cacheKey);
+      if (cached) {
+        console.log('[classifyAchievement] Cache hit:', cacheKey);
+        return JSON.parse(cached) as ClassificationOutput;
+      }
+    } catch (cacheErr) {
+      // Non-fatal — proceed without cache
+      console.warn('[classifyAchievement] Redis get failed (non-fatal):', cacheErr);
+    }
+  }
+
   const prompt = `Evaluate this professional achievement and return JSON matching this schema exactly:
 { "resumeScore": 1-10, "portfolioScore": 1-10, "achievementType": one of ["certification","project","award","job_change","education","open_source","publication","other"], "reasoning": "string (10-500 chars)", "resumeSection": "string or null", "resumeBullet": "ATS-optimized bullet or null" }
 
@@ -171,13 +210,24 @@ Rules:
   const portfolioWorthy = data.portfolioScore >= PORTFOLIO_WORTHY_THRESHOLD;
 
   // Enforce business rules: if not resume-worthy, clear the bullet + section
-  return {
+  const result: ClassificationOutput = {
     ...data,
     resumeBullet: resumeWorthy ? data.resumeBullet : null,
     resumeSection: resumeWorthy ? data.resumeSection : null,
     resumeWorthy,
     portfolioWorthy,
   };
+
+  // ---------------------------------------------------------------------------
+  // 5. Write to cache (1 hour TTL) — fire-and-forget, non-fatal
+  // ---------------------------------------------------------------------------
+  if (redis) {
+    redis
+      .set(cacheKey, JSON.stringify(result), { ex: 3600 })
+      .catch((e) => console.warn('[classifyAchievement] Redis set failed (non-fatal):', e));
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
