@@ -49,7 +49,7 @@ const navItems = [
     href: "/coach",
     icon: MessageSquare,
     accent: false,
-    proGated: true, // show "Pro" badge if user is free
+    proGated: true,
   },
   {
     label: "Settings",
@@ -71,7 +71,10 @@ export function Sidebar({ user }: SidebarProps) {
 
   return (
     <>
-      {/* ── Desktop sidebar (fixed, 240px) ─────────────────────── */}
+      {/* ── Desktop sidebar (fixed, 240px) ─────────────────────────────────
+          Hidden on mobile (<md). The main content area has ml-60 on md+ to
+          leave room for this fixed sidebar (see layout.tsx).
+      ─────────────────────────────────────────────────────────────────────── */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 h-screen border-r border-zinc-800/70 bg-zinc-950/90 backdrop-blur-sm">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 h-16 border-b border-zinc-800/70 shrink-0">
@@ -92,7 +95,6 @@ export function Sidebar({ user }: SidebarProps) {
               (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
             if (item.accent) {
-              // "New Achievement" — always-emerald pill
               return (
                 <Link
                   key={item.href}
@@ -172,8 +174,15 @@ export function Sidebar({ user }: SidebarProps) {
         </div>
       </aside>
 
-      {/* ── Mobile bottom tab bar ───────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/70 flex items-center justify-around px-2 py-2">
+      {/* ── Mobile bottom tab bar ─────────────────────────────────────────────
+          Fixed to bottom of viewport on mobile (<md). Each tab shows icon +
+          first word of label. The "New Achievement" tab renders as a green
+          circle for visual emphasis.
+      ─────────────────────────────────────────────────────────────────────── */}
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/70 flex items-center justify-around px-1 py-1 safe-area-bottom"
+        style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
+      >
         {navItems.slice(0, 5).map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -185,22 +194,26 @@ export function Sidebar({ user }: SidebarProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150",
+                "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-150 min-w-[56px]",
                 item.accent
                   ? "text-emerald-400"
                   : isActive
                   ? "text-emerald-400"
-                  : "text-zinc-500"
+                  : "text-zinc-500 hover:text-zinc-300"
               )}
             >
               {item.accent ? (
-                <span className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
-                  <Icon size={16} strokeWidth={2.5} className="text-zinc-950" />
+                <span className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                  <Icon size={17} strokeWidth={2.5} className="text-zinc-950" />
                 </span>
               ) : (
-                <Icon size={20} strokeWidth={1.75} />
+                <Icon
+                  size={20}
+                  strokeWidth={isActive ? 2 : 1.75}
+                  className={isActive ? "text-emerald-400" : ""}
+                />
               )}
-              <span className="text-[9px] font-medium leading-none">
+              <span className="text-[9px] font-medium leading-none tracking-tight">
                 {item.label.split(" ")[0]}
               </span>
             </Link>

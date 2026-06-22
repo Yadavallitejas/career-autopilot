@@ -24,18 +24,20 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-100">
-      {/* Fixed sidebar — hidden on mobile */}
+      {/* Fixed sidebar — hidden on mobile (<md), shown on md+ */}
       <Sidebar user={dashboardUser} />
 
       {/* Main content column */}
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Header />
-        <main className="flex-1 overflow-y-auto bg-zinc-950">
+        {/*
+          pb-16 md:pb-0 — on mobile the bottom tab bar is 64px tall (h-16).
+          This padding prevents page content from being hidden behind it.
+        */}
+        <main className="flex-1 overflow-y-auto bg-zinc-950 pb-16 md:pb-0">
           {children}
         </main>
       </div>
-
-      {/* Mobile bottom tab bar rendered inside Sidebar at small breakpoints */}
 
       {/* Razorpay checkout script — loaded lazily after page is interactive */}
       <Script

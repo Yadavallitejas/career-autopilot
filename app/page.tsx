@@ -266,7 +266,7 @@ function HeroSection() {
                 </span>
               </div>
 
-              {/* Result cards */}
+              {/* Result cards — stack on phone, 3-col on sm+ */}
               <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="animate-slide-up-1 bg-zinc-800/60 border border-zinc-700 rounded-xl p-3 flex items-center gap-2.5">
                   <span className="text-emerald-400 bg-emerald-400/10 p-1.5 rounded-lg">
@@ -329,13 +329,13 @@ function ProblemSection() {
   ];
 
   return (
-    <section className="py-24 px-4">
+    <section className="py-16 sm:py-24 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-14">
           <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
             Stop losing time to manual updates
           </h2>
-          <p className="text-zinc-400 mt-3 text-lg">
+          <p className="text-zinc-400 mt-3 text-base sm:text-lg">
             Every achievement you ship deserves to be seen — not buried in a
             to-do list.
           </p>
@@ -476,7 +476,7 @@ function FeaturesSection() {
   };
 
   return (
-    <section id="features" className="py-24 px-4">
+    <section id="features" className="py-16 sm:py-24 px-4 sm:px-6">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-14">
           <span className="font-mono text-xs text-emerald-400 uppercase tracking-widest">
@@ -525,7 +525,7 @@ function FeaturesSection() {
 ───────────────────────────────────────────── */
 function HowItWorksSection() {
   return (
-    <section className="py-24 px-4 bg-zinc-900/30">
+    <section className="py-16 sm:py-24 px-4 sm:px-6 bg-zinc-900/30">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-16">
           <span className="font-mono text-xs text-emerald-400 uppercase tracking-widest">
@@ -537,8 +537,8 @@ function HowItWorksSection() {
         </div>
 
         <div className="space-y-16">
-          {/* Step 1 */}
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+          {/* Step 1: text first, mockup second — same order on mobile */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-center">
             <div>
               <div className="text-7xl font-black text-zinc-800 leading-none mb-4 font-mono">
                 01
@@ -581,10 +581,10 @@ function HowItWorksSection() {
             <div className="w-px h-12 bg-gradient-to-b from-zinc-700 to-transparent" />
           </div>
 
-          {/* Step 2 */}
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+          {/* Step 2: on mobile show text first (order-1), mockup second (order-2) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-center">
             <div className="order-2 md:order-1">
-              {/* Mockup: progress bar */}
+              {/* Progress bar mockup */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold text-zinc-400">
@@ -634,7 +634,7 @@ function HowItWorksSection() {
               </div>
             </div>
             <div className="order-1 md:order-2">
-              <div className="text-7xl font-black text-zinc-800 leading-none mb-4 font-mono">
+              <div className="text-6xl sm:text-7xl font-black text-zinc-800 leading-none mb-4 font-mono">
                 02
               </div>
               <h3 className="text-2xl font-bold text-white mb-3">
@@ -653,10 +653,10 @@ function HowItWorksSection() {
             <div className="w-px h-12 bg-gradient-to-b from-zinc-700 to-transparent" />
           </div>
 
-          {/* Step 3 */}
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+          {/* Step 3: text first on both mobile and desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-center">
             <div>
-              <div className="text-7xl font-black text-zinc-800 leading-none mb-4 font-mono">
+              <div className="text-6xl sm:text-7xl font-black text-zinc-800 leading-none mb-4 font-mono">
                 03
               </div>
               <h3 className="text-2xl font-bold text-white mb-3">

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { ResumeVersion } from "@/db/schema";
 
@@ -759,30 +760,81 @@ export function ResumeViewer({ versions, userId }: Props) {
                 </div>
               </div>
 
-              {/* PDF iframe (desktop) / open link (mobile) */}
-              <div className="flex-1 bg-zinc-900/30">
-                {/* Mobile fallback */}
-                <div className="md:hidden flex flex-col items-center justify-center h-48 gap-4 p-4">
-                  <FileText size={40} className="text-zinc-600" />
-                  <p className="text-sm text-zinc-400 text-center">
-                    PDF preview is best viewed on desktop.
-                  </p>
-                  <a
-                    href={selected.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm font-medium text-emerald-400 hover:text-emerald-300"
-                  >
-                    Open PDF <ExternalLink size={14} />
-                  </a>
-                </div>
+              {/* ── Mobile: tabbed (History | Preview) ───────────────── */}
+              <div className="md:hidden flex-1">
+                <Tabs defaultValue="preview" className="h-full flex flex-col">
+                  <TabsList className="mx-4 mt-3 mb-0 grid grid-cols-2 bg-zinc-800/60">
+                    <TabsTrigger value="preview" className="text-xs">Preview</TabsTrigger>
+                    <TabsTrigger value="history" className="text-xs">History</TabsTrigger>
+                  </TabsList>
 
-                {/* Desktop iframe */}
+                  {/* Preview tab */}
+                  <TabsContent value="preview" className="flex-1 p-4">
+                    <div className="flex flex-col items-center gap-4 py-6 text-center">
+                      <FileText size={48} className="text-zinc-600" />
+                      <p className="text-sm text-zinc-400">
+                        PDF preview works best on desktop.
+                      </p>
+                      <a
+                        href={selected.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-sm font-semibold transition-colors"
+                      >
+                        Open PDF <ExternalLink size={14} />
+                      </a>
+                      <a
+                        href={`/api/resume/${selected.id}/download`}
+                        download
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium transition-colors"
+                      >
+                        <Download size={14} />
+                        Download PDF
+                      </a>
+                    </div>
+                  </TabsContent>
+
+                  {/* History tab — shows the version list inline on mobile */}
+                  <TabsContent value="history" className="flex-1 overflow-y-auto">
+                    <div className="divide-y divide-zinc-800/60">
+                      {sortedVersions.map((v) => (
+                        <button
+                          key={v.id}
+                          onClick={() => setSelected(v)}
+                          className={cn(
+                            "w-full text-left px-4 py-4 hover:bg-zinc-800/60 transition-colors",
+                            selected?.id === v.id && "bg-zinc-800/80"
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-zinc-500">
+                              {format(new Date(v.createdAt), "MMM d, yyyy")}
+                            </span>
+                            {v.isCurrent && (
+                              <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                                Current
+                              </Badge>
+                            )}
+                          </div>
+                          {v.changesSummary && (
+                            <p className="text-xs text-zinc-300 leading-relaxed line-clamp-2">
+                              {v.changesSummary}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+
+              {/* ── Desktop: inline iframe ────────────────────────────── */}
+              <div className="hidden md:flex flex-1 bg-zinc-900/30">
                 <iframe
                   key={selected.id}
                   src={selected.fileUrl}
                   title="Resume preview"
-                  className="hidden md:block w-full h-[800px] border-0"
+                  className="w-full h-[800px] border-0"
                 />
               </div>
             </>
