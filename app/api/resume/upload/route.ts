@@ -1,165 +1,172 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { db } from "@/db";
-import { users, resumeVersions } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getStorageClient } from "@/lib/storage/client";
+// CRITICAL: forces Node.js runtime so pdf/docx parsing works in serverless
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-// pdf-parse and mammoth use CommonJS — require() avoids ESM interop issues
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const mammoth = require("mammoth") as {
-  extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string }>;
-};
+// Allow up to 30 seconds for large file extraction
+export const maxDuration = 30
 
-const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
+import { db } from '@/db'
+import { users, resumeVersions } from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { getStorageClient } from '@/lib/storage/client'
+import { extractTextFromPdf, extractTextFromDocx } from '@/lib/resume/extract-text'
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // Auth
-  const { userId: clerkId } = auth();
-  if (!clerkId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Resolve DB user
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.clerkId, clerkId))
-    .limit(1);
-
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  // Parse multipart form
-  let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
-    return NextResponse.json(
-      { error: "Invalid multipart form" },
-      { status: 400 }
-    );
-  }
-
-  const fileField = form.get("file");
-  if (!fileField || typeof fileField === "string") {
-    return NextResponse.json(
-      { error: "No file field in form" },
-      { status: 400 }
-    );
-  }
-
-  const file = fileField as File;
-
-  // Validate MIME
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return NextResponse.json(
-      { error: "Only PDF and DOCX files are accepted" },
-      { status: 415 }
-    );
-  }
-
-  // Validate size
-  if (file.size > MAX_FILE_BYTES) {
-    return NextResponse.json(
-      { error: "File too large (max 10 MB)" },
-      { status: 413 }
-    );
-  }
-
-  // Read to buffer
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  // Extract raw text
-  let rawText: string;
-  try {
-    if (file.type === "application/pdf") {
-      const result = await pdfParse(buffer);
-      rawText = result.text;
-    } else {
-      const result = await mammoth.extractRawText({ buffer });
-      rawText = result.value;
+    // 1. Auth
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-  } catch (extractErr) {
-    console.error("[resume/upload] Text extraction failed:", extractErr);
-    return NextResponse.json(
-      { error: "Failed to extract text from file" },
-      { status: 422 }
-    );
-  }
 
-  // Upload original file to Supabase Storage
-  const ext = file.type === "application/pdf" ? "pdf" : "docx";
-  const storagePath = `resumes/${user.id}/${Date.now()}.${ext}`;
-  const supabase = getStorageClient();
+    // 2. Parse multipart form
+    let formData: FormData
+    try {
+      formData = await req.formData()
+    } catch {
+      return NextResponse.json({ error: 'Invalid multipart form data' }, { status: 400 })
+    }
 
-  const { error: uploadError } = await supabase.storage
-    .from("resumes")
-    .upload(storagePath, buffer, {
-      contentType: file.type,
-      upsert: false,
-    });
+    const fileField = formData.get('file')
+    if (!fileField || typeof fileField === 'string') {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    }
 
-  if (uploadError) {
-    console.error("[resume/upload] Storage upload error:", uploadError);
-    return NextResponse.json(
-      { error: "Storage upload failed" },
-      { status: 502 }
-    );
-  }
+    const file = fileField as File
 
-  const { data: urlData } = supabase.storage
-    .from("resumes")
-    .getPublicUrl(storagePath);
-
-  const fileUrl = urlData.publicUrl;
-
-  // Persist to DB — mark all previous as not current, insert new current
-  await db.transaction(async (tx) => {
-    await tx
-      .update(resumeVersions)
-      .set({ isCurrent: false })
-      .where(
-        and(
-          eq(resumeVersions.userId, user.id),
-          eq(resumeVersions.isCurrent, true)
-        )
-      );
-
-    await tx.insert(resumeVersions).values({
-      userId: user.id,
-      templateId: "uploaded",
-      fileUrl,
-      rawText: rawText.slice(0, 200_000), // cap at 200k chars to keep DB sane
-      isCurrent: true,
-      changesSummary: `Uploaded ${file.name} (${(file.size / 1024).toFixed(0)} KB)`,
-    });
-  });
-
-  // Fetch the newly inserted version ID
-  const [newVersion] = await db
-    .select({ id: resumeVersions.id })
-    .from(resumeVersions)
-    .where(
-      and(
-        eq(resumeVersions.userId, user.id),
-        eq(resumeVersions.isCurrent, true)
+    // 3. Validate MIME type
+    if (!ALLOWED_TYPES.has(file.type)) {
+      return NextResponse.json(
+        { error: 'Invalid file type. Please upload a PDF or DOCX file.' },
+        { status: 415 }
       )
-    )
-    .limit(1);
+    }
 
-  return NextResponse.json({
-    versionId: newVersion?.id,
-    fileUrl,
-    rawText: rawText.slice(0, 2000), // return a preview only
-  });
+    // 4. Validate size
+    if (file.size > MAX_FILE_BYTES) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum size is 10MB.' },
+        { status: 413 }
+      )
+    }
+
+    // 5. Convert File → Buffer (App Router pattern)
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    // 6. Extract text based on file type
+    let rawText: string
+    try {
+      if (file.type === 'application/pdf') {
+        rawText = await extractTextFromPdf(buffer)
+      } else {
+        rawText = await extractTextFromDocx(buffer)
+      }
+    } catch (extractError) {
+      console.error('[Resume Upload] Text extraction failed:', extractError)
+      return NextResponse.json(
+        {
+          error:
+            'Could not extract text from this file. Please try a different file or use our resume builder.',
+        },
+        { status: 422 }
+      )
+    }
+
+    // 7. Sanity-check extracted text
+    if (rawText.trim().length < 50) {
+      return NextResponse.json(
+        {
+          error:
+            'The file appears to be empty or image-only. Please upload a text-based PDF or DOCX.',
+        },
+        { status: 422 }
+      )
+    }
+
+    // 8. Resolve DB user
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkId))
+      .limit(1)
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    // 9. Upload original file to Supabase Storage
+    const ext = file.type === 'application/pdf' ? 'pdf' : 'docx'
+    const storagePath = `resumes/${user.id}/${Date.now()}.${ext}`
+    const supabase = getStorageClient()
+
+    const { error: uploadError } = await supabase.storage
+      .from('resumes')
+      .upload(storagePath, buffer, {
+        contentType: file.type,
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error('[Resume Upload] Supabase upload failed:', uploadError)
+      // Non-fatal — we have the text, proceed without a stored file URL
+    }
+
+    // 10. Get a signed URL (7-day TTL) — only if upload succeeded
+    let fileUrl = ''
+    if (!uploadError) {
+      const { data: urlData } = await supabase.storage
+        .from('resumes')
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 7) // 7 days
+      fileUrl = urlData?.signedUrl ?? ''
+    }
+
+    // 11. Persist to DB — mark existing current as stale, insert new version
+    const [newVersion] = await db.transaction(async (tx) => {
+      await tx
+        .update(resumeVersions)
+        .set({ isCurrent: false })
+        .where(
+          and(
+            eq(resumeVersions.userId, user.id),
+            eq(resumeVersions.isCurrent, true)
+          )
+        )
+
+      return tx
+        .insert(resumeVersions)
+        .values({
+          userId: user.id,
+          templateId: 'uploaded',
+          fileUrl,
+          rawText: rawText.slice(0, 200_000), // cap at 200k chars
+          isCurrent: true,
+          changesSummary: `Uploaded ${file.name} (${(file.size / 1024).toFixed(0)} KB)`,
+        })
+        .returning()
+    })
+
+    return NextResponse.json({
+      versionId: newVersion?.id,
+      fileUrl,
+      rawTextLength: rawText.length,
+      rawTextPreview: rawText.slice(0, 500),
+      message: 'Resume uploaded successfully',
+    })
+  } catch (error) {
+    console.error('[Resume Upload] Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Upload failed. Please try again.' },
+      { status: 500 }
+    )
+  }
 }

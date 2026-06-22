@@ -18,7 +18,20 @@ const nextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: ["localhost:3000"],
+      // Increase body size limit to handle resume file uploads (PDF/DOCX up to 10MB)
+      bodySizeLimit: '10mb',
     },
+  },
+  // Tell webpack not to bundle pdfjs-dist — it loads at runtime in Node.js serverless
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : [config.externals].filter(Boolean)),
+        'pdfjs-dist',
+        'canvas',
+      ];
+    }
+    return config;
   },
   async headers() {
     return [
