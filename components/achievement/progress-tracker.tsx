@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Check,
@@ -35,6 +35,7 @@ interface AchievementStatus {
   classifiedPortfolioWorthy: boolean | null;
   reasoning: string | null;
   posts: PostStatus[];
+  createdAt?: string;
 }
 
 interface ProgressTrackerProps {
@@ -308,6 +309,12 @@ export function ProgressTracker({
   const [data, setData] = useState<AchievementStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logAnother, setLogAnother] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const createdAtRef = useRef<string | null>(null);
+
+  // Detect if stuck: processing + age > 5 min
+  const [isStuck, setIsStuck] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -321,11 +328,23 @@ export function ProgressTracker({
       }
       const json: AchievementStatus = await res.json();
       setData(json);
+      // Track createdAt for stuck detection
+      if (json.createdAt && !createdAtRef.current) {
+        createdAtRef.current = json.createdAt;
+      }
+      // Check stuck: still processing after 5+ minutes
+      if (json.status === "processing" && json.createdAt) {
+        const ageMs = Date.now() - new Date(json.createdAt).getTime();
+        setIsStuck(ageMs > 5 * 60 * 1000);
+      } else {
+        setIsStuck(false);
+      }
     } catch (err) {
       console.error("[ProgressTracker] poll error:", err);
       // Don't set hard error on transient network failures — keep polling
     }
   }, [achievementId]);
+
 
   useEffect(() => {
     // Immediate first fetch
@@ -357,6 +376,27 @@ export function ProgressTracker({
     // Signal parent to reset
     if (onRetry) onRetry();
     return null;
+  }
+
+  async function handleRetryProcessing() {
+    setIsRetrying(true);
+    setRetryError(null);
+    try {
+      const res = await fetch(`/api/achievement/${achievementId}/retry`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `Retry failed (HTTP ${res.status})`);
+      }
+      // Reset stuck state and let polling detect the new job
+      setIsStuck(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Retry failed. Try again.";
+      setRetryError(msg);
+    } finally {
+      setIsRetrying(false);
+    }
   }
 
   const stepStates = getStepStates(data);
@@ -427,8 +467,41 @@ export function ProgressTracker({
                 isLast={i === steps.length - 1}
               />
             ))}
+
+            {/* Stuck banner — shown only when processing > 5 minutes */}
+            {isStuck && (
+              <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+                <p className="text-xs text-amber-400 font-semibold mb-1">Taking longer than usual</p>
+                <p className="text-xs text-zinc-500 mb-3">
+                  This achievement has been processing for over 5 minutes. You can retry the pipeline.
+                </p>
+                {retryError && (
+                  <p className="text-xs text-red-400 mb-2">{retryError}</p>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isRetrying}
+                  onClick={handleRetryProcessing}
+                  className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                >
+                  {isRetrying ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full border border-amber-400 border-t-transparent animate-spin" />
+                      Retrying...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <RotateCcw size={13} />
+                      Retry processing
+                    </span>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
+
       </div>
 
       {/* Results card — only shown on complete */}

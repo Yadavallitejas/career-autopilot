@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { achievements, users } from "@/db/schema";
-import { eq, gte, and, count } from "drizzle-orm";
+import { eq, gte, and, sql } from "drizzle-orm";
 import { enqueueAchievementJob } from "@/lib/queue/qstash";
 
 // ---------------------------------------------------------------------------
@@ -71,16 +71,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       startOfMonth.setHours(0, 0, 0, 0);
 
       const [monthlyResult] = await db
-        .select({ value: count() })
+        .select({ count: sql<number>`count(*)::int` })
         .from(achievements)
         .where(
           and(
             eq(achievements.userId, user.id),
+            eq(achievements.status, 'complete'),  // Only count completed ones
             gte(achievements.createdAt, startOfMonth)
           )
         );
 
-      const monthlyCount = monthlyResult?.value ?? 0;
+      const monthlyCount = monthlyResult?.count ?? 0;
 
       if (monthlyCount >= FREE_TIER_MONTHLY_LIMIT) {
         return NextResponse.json(

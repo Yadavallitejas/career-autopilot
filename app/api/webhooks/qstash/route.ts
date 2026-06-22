@@ -76,6 +76,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
+  console.log('[QStash] Job received:', { achievementId, userId, timestamp: new Date().toISOString() });
+
   // ─── Step 1: Verify ownership ────────────────────────────────────────────
   logStep(`Step 1: Verifying achievement ${achievementId}`, pipelineStart);
 
@@ -106,34 +108,45 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // ─── Step 2: Fetch context ───────────────────────────────────────────────
   logStep("Step 2: Fetching resume + portfolio context", pipelineStart);
 
-  const [currentResumeRows, portfolioRows] = await Promise.all([
-    db
-      .select()
-      .from(resumeVersions)
-      .where(
-        and(
-          eq(resumeVersions.userId, userId),
-          eq(resumeVersions.isCurrent, true)
+  let currentResume: (typeof resumeVersions.$inferSelect) | undefined;
+  let existingResumeText = "";
+  let existingPortfolioProjects: string[] = [];
+
+  try {
+    const [currentResumeRows, portfolioRows] = await Promise.all([
+      db
+        .select()
+        .from(resumeVersions)
+        .where(
+          and(
+            eq(resumeVersions.userId, userId),
+            eq(resumeVersions.isCurrent, true)
+          )
         )
-      )
-      .limit(1),
-    db
-      .select()
-      .from(portfolioConfig)
-      .where(eq(portfolioConfig.userId, userId))
-      .limit(1),
-  ]);
+        .limit(1),
+      db
+        .select()
+        .from(portfolioConfig)
+        .where(eq(portfolioConfig.userId, userId))
+        .limit(1),
+    ]);
 
-  const currentResume = currentResumeRows[0];
-  const portfolio = portfolioRows[0];
+    currentResume = currentResumeRows[0];
+    const portfolio = portfolioRows[0];
 
-  const existingResumeText = currentResume?.rawText ?? "";
-  // Portfolio projects — currently stored as flat config; use deploy URL as context
-  const existingPortfolioProjects: string[] = portfolio?.deployUrl
-    ? [portfolio.deployUrl]
-    : [];
+    existingResumeText = currentResume?.rawText ?? "";
+    // Portfolio projects — currently stored as flat config; use deploy URL as context
+    existingPortfolioProjects = portfolio?.deployUrl ? [portfolio.deployUrl] : [];
 
-  logStep("Step 2: Context fetched", pipelineStart);
+    logStep("Step 2: Context fetched", pipelineStart);
+  } catch (contextErr) {
+    console.error(
+      `[qstash] Step 2: Context fetch failed for achievementId=${achievementId}:`,
+      contextErr
+    );
+    // Non-fatal — proceed with empty context
+    logStep("Step 2: Context fetch failed (non-fatal), continuing", pipelineStart);
+  }
 
   // ─── Step 3: Classify ────────────────────────────────────────────────────
   logStep("Step 3: Classifying achievement", pipelineStart);
@@ -178,17 +191,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // ─── Step 4: Get user + voice profile ───────────────────────────────────
   logStep("Step 4: Fetching user voice profile", pipelineStart);
 
-  const userRows = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  let user: (typeof users.$inferSelect) | undefined;
+  let voiceProfile: Record<string, unknown> | null = null;
 
-  const user = userRows[0];
-  const voiceProfile =
-    (user?.voiceProfile as Record<string, unknown> | null) ?? null;
+  try {
+    const userRows = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-  logStep("Step 4: User fetched", pipelineStart);
+    user = userRows[0];
+    voiceProfile = (user?.voiceProfile as Record<string, unknown> | null) ?? null;
+
+    logStep("Step 4: User fetched", pipelineStart);
+  } catch (userErr) {
+    console.error(
+      `[qstash] Step 4: User fetch failed for achievementId=${achievementId}:`,
+      userErr
+    );
+    // Non-fatal — proceed without voice profile
+    logStep("Step 4: User fetch failed (non-fatal), continuing without voice profile", pipelineStart);
+  }
 
   // ─── Step 5: Draft LinkedIn post ─────────────────────────────────────────
   logStep("Step 5: Drafting LinkedIn post", pipelineStart);

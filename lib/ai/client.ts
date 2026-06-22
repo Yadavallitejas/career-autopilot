@@ -1,149 +1,129 @@
-import { env } from "@/lib/env";
-import Anthropic, { APIError } from "@anthropic-ai/sdk";
-import OpenAI from "openai";
+import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 
 // ---------------------------------------------------------------------------
-// Singleton clients — instantiated once at module level, reused per request
+// Singleton clients — instantiated at module level with process.env directly
+// so they pick up the key at call time rather than at module load, avoiding
+// issues in environments where env vars are injected late.
 // ---------------------------------------------------------------------------
 
-let _anthropic: Anthropic | null = null;
-function getAnthropicClientInstance(): Anthropic {
-  if (!_anthropic) {
-    if (!env.ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not configured");
-    }
-    _anthropic = new Anthropic({
-      apiKey: env.ANTHROPIC_API_KEY,
-    });
-  }
-  return _anthropic;
-}
-
-let _grok: OpenAI | null = null;
-function getGrokClientInstance(): OpenAI {
-  if (!_grok) {
-    if (!env.XAI_API_KEY) {
-      throw new Error("XAI_API_KEY is not configured");
-    }
-    _grok = new OpenAI({
-      apiKey: env.XAI_API_KEY,
-      baseURL: env.XAI_BASE_URL ?? "https://api.x.ai/v1",
-    });
-  }
-  return _grok;
-}
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' })
+const grok = new OpenAI({
+  apiKey: process.env.XAI_API_KEY ?? '',
+  baseURL: 'https://api.x.ai/v1'
+})
 
 // ---------------------------------------------------------------------------
-// Exported getters (kept for backward compat with existing callers)
+// Backward-compat getters (kept so existing callers don't break)
 // ---------------------------------------------------------------------------
 
 export function getAnthropicClient(): Anthropic {
-  return getAnthropicClientInstance();
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY is not configured')
+  }
+  return anthropic
 }
 
 export function getXaiClient(): OpenAI {
-  return getGrokClientInstance();
+  if (!process.env.XAI_API_KEY) {
+    throw new Error('XAI_API_KEY is not configured')
+  }
+  return grok
 }
 
 // ---------------------------------------------------------------------------
 // Shared types
 // ---------------------------------------------------------------------------
 
-export type AiMessage = { role: "user" | "assistant"; content: string };
-
-/** Status codes that should trigger Grok fallback rather than a hard throw */
-const FALLBACK_STATUSES = new Set([
-  402, // Payment required / quota exhausted
-  429, // Rate limit
-  529, // Anthropic "overloaded" custom code
-]);
+export type AiMessage = { role: 'user' | 'assistant'; content: string }
 
 // ---------------------------------------------------------------------------
-// callAI — the new simple interface (system + prompt pair)
+// callAI — primary interface (system + prompt pair)
 // ---------------------------------------------------------------------------
 
 export interface CallAIOptions {
-  system: string;
-  prompt: string;
-  maxTokens?: number;
+  system: string
+  prompt: string
+  maxTokens?: number
 }
 
 /**
- * Calls Claude Sonnet as primary, falls back to Grok-3-mini on:
- *   - HTTP 429 (rate limit)
- *   - HTTP 402 (payment / quota)
- *   - HTTP 529 (Anthropic overloaded)
+ * Calls Claude Sonnet as primary, falls back to Grok-3-mini on rate-limit /
+ * quota / overload errors (429, 402, 529).
  *
- * Any other Anthropic error is re-thrown immediately.
- * If Grok also fails, the error is logged and re-thrown.
+ * Any other Anthropic error is re-thrown immediately unless XAI_API_KEY is
+ * available, in which case we also fall back to Grok.
  */
 export async function callAI({
   system,
   prompt,
   maxTokens = 1000,
 }: CallAIOptions): Promise<string> {
-  // 1. Try Anthropic (Claude Sonnet 4.5) if key is present
-  if (env.ANTHROPIC_API_KEY) {
+  // Guard: if no API keys, fail fast
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.XAI_API_KEY) {
+    console.error('[AI] No API keys configured!')
+    throw new Error('No AI API keys configured. Please set ANTHROPIC_API_KEY.')
+  }
+
+  // Try Anthropic
+  if (process.env.ANTHROPIC_API_KEY) {
     try {
-      const client = getAnthropicClientInstance();
-      const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
         max_tokens: maxTokens,
         system,
-        messages: [{ role: "user", content: prompt }],
-      });
-
-      const firstBlock = response.content[0];
-      return firstBlock?.type === "text" ? firstBlock.text : "";
-    } catch (err) {
-      if (err instanceof APIError && err.status !== undefined) {
-        if (FALLBACK_STATUSES.has(err.status)) {
-          // Fall through to Grok
-          console.warn(
-            `[callAI] Anthropic returned ${err.status} — falling back to Grok`
-          );
-        } else {
-          // Hard failure (auth, bad request, etc.) — throw immediately
-          throw err;
-        }
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const text = response.content[0]
+      if (text.type !== 'text') throw new Error('Unexpected response type from Anthropic')
+      console.log('[AI] Anthropic success, tokens:', response.usage.output_tokens)
+      return text.text
+    } catch (error: unknown) {
+      const isRateLimit =
+        error instanceof Anthropic.APIStatusError &&
+        [429, 402, 529].includes(error.status)
+      if (isRateLimit) {
+        console.warn('[AI] Anthropic rate limited, falling back to Grok')
       } else {
-        // Non-HTTP error (network, timeout, etc.) — fall back to Grok
-        console.warn(`[callAI] Anthropic call failed — falling back to Grok:`, err);
+        console.error('[AI] Anthropic error:', error)
+        if (!process.env.XAI_API_KEY) throw error
       }
     }
-  } else {
-    console.warn(`[callAI] ANTHROPIC_API_KEY not set — falling back to Grok`);
   }
 
-  // 2. Grok fallback (xAI, OpenAI-compatible)
-  try {
-    const client = getGrokClientInstance();
-    const response = await client.chat.completions.create({
-      model: "grok-3-mini",
-      max_tokens: maxTokens,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: prompt },
-      ],
-    });
-
-    return response.choices[0]?.message?.content ?? "";
-  } catch (grokErr) {
-    console.error("[callAI] Grok fallback also failed:", grokErr);
-    throw grokErr;
+  // Grok fallback
+  if (process.env.XAI_API_KEY) {
+    try {
+      const response = await grok.chat.completions.create({
+        model: 'grok-3-mini',
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+      })
+      const content = response.choices[0]?.message?.content
+      if (!content) throw new Error('Empty response from Grok')
+      console.log('[AI] Grok fallback success')
+      return content
+    } catch (error) {
+      console.error('[AI] Grok also failed:', error)
+      throw error
+    }
   }
+
+  throw new Error('All AI providers failed or not configured')
 }
 
 // ---------------------------------------------------------------------------
-// callAi — legacy interface used by classify.ts, draft-post.ts, etc.
-// Delegates to callAI internally.
+// callAi — legacy multi-turn interface, delegates to callAI
 // ---------------------------------------------------------------------------
 
 export interface AiCallOptions {
-  messages: AiMessage[];
-  systemPrompt?: string;
-  maxTokens?: number;
-  temperature?: number; // accepted but not forwarded (Claude ignores, Grok accepts — kept for API compat)
+  messages: AiMessage[]
+  systemPrompt?: string
+  maxTokens?: number
+  temperature?: number // accepted but not forwarded (kept for API compat)
 }
 
 /**
@@ -153,22 +133,20 @@ export interface AiCallOptions {
  */
 export async function callAi({
   messages,
-  systemPrompt = "",
+  systemPrompt = '',
   maxTokens = 1000,
 }: AiCallOptions): Promise<string> {
-  // Separate the last user message from the prior context
-  const lastMessage = messages[messages.length - 1];
-  const priorContext = messages.slice(0, -1);
+  const lastMessage = messages[messages.length - 1]
+  const priorContext = messages.slice(0, -1)
 
-  // Build a context block so Claude understands prior conversation turns
   const contextBlock =
     priorContext.length > 0
       ? priorContext
-        .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-        .join("\n\n") + "\n\n"
-      : "";
+          .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .join('\n\n') + '\n\n'
+      : ''
 
-  const prompt = contextBlock + (lastMessage?.content ?? "");
+  const prompt = contextBlock + (lastMessage?.content ?? '')
 
-  return callAI({ system: systemPrompt, prompt, maxTokens });
+  return callAI({ system: systemPrompt, prompt, maxTokens })
 }
