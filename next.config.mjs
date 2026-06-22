@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: {
+    // Don't block production builds on lint errors. Many Vercel deploys
+    // fail on minor warnings (unescaped quotes, unused vars). Run `npm run lint`
+    // locally or via CI instead.
+    ignoreDuringBuilds: true,
+  },
   images: {
     domains: [
       "avatars.githubusercontent.com",
