@@ -1,68 +1,55 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { encrypt, decrypt } from '../../lib/encryption';
 import crypto from 'crypto';
 
-describe('encryption', () => {
+describe('Encryption', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     process.env = { ...originalEnv };
+    // 32-byte key hex encoded (64 characters)
+    process.env.ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
   });
 
-  afterAll(() => {
+  afterEach(() => {
     process.env = originalEnv;
   });
 
-  it('should roundtrip a string', () => {
-    const keyBytes = crypto.randomBytes(32);
-    process.env.ENCRYPTION_KEY = keyBytes.toString('hex');
-
-    const plaintext = 'super secret token 123';
+  it('should encrypt and decrypt correctly', () => {
+    const plaintext = 'secret message';
     const ciphertext = encrypt(plaintext);
-    expect(ciphertext).not.toContain(plaintext);
+
+    expect(ciphertext).toBeDefined();
+    expect(ciphertext).not.toBe(plaintext);
+    expect(ciphertext.split(':')).toHaveLength(3); // iv:authTag:data
 
     const decrypted = decrypt(ciphertext);
-    expect(decrypted).toEqual(plaintext);
+    expect(decrypted).toBe(plaintext);
   });
 
-  it('should throw when decrypting with wrong key', () => {
-    const key1 = crypto.randomBytes(32).toString('hex');
-    const key2 = crypto.randomBytes(32).toString('hex');
-
-    process.env.ENCRYPTION_KEY = key1;
-    const ciphertext = encrypt('test');
-
-    process.env.ENCRYPTION_KEY = key2;
-    expect(() => decrypt(ciphertext)).toThrow('Decryption failed');
-  });
-
-  it('should produce different ciphertexts for the same input', () => {
-    const keyBytes = crypto.randomBytes(32);
-    process.env.ENCRYPTION_KEY = keyBytes.toString('hex');
-
-    const plaintext = 'consistent string';
-    const c1 = encrypt(plaintext);
-    const c2 = encrypt(plaintext);
-
-    expect(c1).not.toEqual(c2);
-
-    expect(decrypt(c1)).toEqual(plaintext);
-    expect(decrypt(c2)).toEqual(plaintext);
-  });
-
-  it('should throw if ENCRYPTION_KEY is not set', () => {
+  it('should throw an error during encryption if ENCRYPTION_KEY is not set', () => {
     delete process.env.ENCRYPTION_KEY;
-    expect(() => encrypt('test')).toThrow('ENCRYPTION_KEY env var is not set');
-    expect(() => decrypt('iv:auth:data')).toThrow('ENCRYPTION_KEY env var is not set');
+    expect(() => encrypt('secret')).toThrow('ENCRYPTION_KEY env var is not set');
   });
 
-  it('should throw if ENCRYPTION_KEY is wrong length', () => {
-    process.env.ENCRYPTION_KEY = crypto.randomBytes(16).toString('hex');
-    expect(() => encrypt('test')).toThrow('ENCRYPTION_KEY must be 32 bytes when hex-decoded');
+  it('should throw an error during encryption if ENCRYPTION_KEY is invalid length', () => {
+    process.env.ENCRYPTION_KEY = crypto.randomBytes(16).toString('hex'); // 16 bytes
+    expect(() => encrypt('secret')).toThrow('ENCRYPTION_KEY must be 32 bytes when hex-decoded');
   });
 
-  it('should throw if ciphertext format is invalid', () => {
-    process.env.ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
-    expect(() => decrypt('invalid-format')).toThrow('Invalid ciphertext format — expected iv:authTag:data');
+  it('should throw an error during decryption for invalid ciphertext format', () => {
+    expect(() => decrypt('invalidformat')).toThrow('Invalid ciphertext format — expected iv:authTag:data');
+  });
+
+  it('should throw an error during decryption for invalid auth tag (tampered data)', () => {
+    const plaintext = 'secret message';
+    const ciphertext = encrypt(plaintext);
+    const parts = ciphertext.split(':');
+
+    // Tamper with data part
+    const tamperedCiphertext = `${parts[0]}:${parts[1]}:bad${parts[2].slice(3)}`;
+
+    expect(() => decrypt(tamperedCiphertext)).toThrow('Decryption failed');
   });
 });

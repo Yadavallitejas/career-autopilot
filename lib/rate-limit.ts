@@ -31,6 +31,25 @@ export async function rateLimit(
   limit: number,
   windowSeconds: number
 ): Promise<RateLimitResult> {
-  // TODO: implement sliding window using INCR + EXPIRE
-  return { success: true, remaining: limit - 1, resetAt: new Date() };
+  const client = getRedis();
+
+  // Increment the counter for this key
+  const currentCount = await client.incr(key);
+
+  // If this is the first request, set the expiration window
+  if (currentCount === 1) {
+    await client.expire(key, windowSeconds);
+  }
+
+  // Calculate remaining requests
+  const remaining = Math.max(0, limit - currentCount);
+
+  // Calculate when this window will reset
+  const resetAt = new Date(Date.now() + windowSeconds * 1000);
+
+  return {
+    success: currentCount <= limit,
+    remaining,
+    resetAt,
+  };
 }
