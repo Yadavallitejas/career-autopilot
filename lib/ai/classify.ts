@@ -5,6 +5,17 @@ import { Redis } from "@upstash/redis";
 import crypto from "crypto";
 
 // ---------------------------------------------------------------------------
+// Resume rules type — mirrors users.resumeRules jsonb shape
+// ---------------------------------------------------------------------------
+
+export interface ResumeRules {
+  maxPages?: 1 | 2 | null;
+  focus?: "technical" | "creative" | "balanced";
+  excludeSections?: string[];
+  customInstruction?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Redis client — module-level singleton, reused across invocations
 // ---------------------------------------------------------------------------
 
@@ -85,6 +96,38 @@ function stripMarkdownFences(raw: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Helper — builds the resume-rules block appended to the classify prompt
+// ---------------------------------------------------------------------------
+
+function buildResumeRulesBlock(rules?: ResumeRules | null): string {
+  if (!rules) return "";
+
+  const lines: string[] = ["\n\nUser resume preferences (respect these when generating the bullet and choosing a section):"];
+
+  if (rules.maxPages === 1) {
+    lines.push("- Target a 1-page resume — keep bullets concise (under 20 words each).");
+  } else if (rules.maxPages === 2) {
+    lines.push("- Target a 2-page resume — more detail is acceptable.");
+  }
+
+  if (rules.focus === "technical") {
+    lines.push("- Writing focus: technical / ATS-optimised — use precise keywords, metrics, and tech stack names.");
+  } else if (rules.focus === "creative") {
+    lines.push("- Writing focus: creative / human — prefer natural language over keyword stuffing.");
+  }
+
+  if (rules.excludeSections && rules.excludeSections.length > 0) {
+    lines.push(`- Do NOT place this bullet in the following sections: ${rules.excludeSections.join(", ")}.`);
+  }
+
+  if (rules.customInstruction?.trim()) {
+    lines.push(`- Special instruction from user: "${rules.customInstruction.trim()}"`);
+  }
+
+  return lines.length > 1 ? lines.join("\n") : "";
+}
+
+// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
@@ -101,10 +144,13 @@ export async function classifyAchievement({
   rawInput,
   existingResumeText,
   existingPortfolioProjects,
+  resumeRules,
 }: {
   rawInput: string;
   existingResumeText: string;
   existingPortfolioProjects: string[];
+  /** Optional per-user resume preferences — injected into the prompt when present */
+  resumeRules?: ResumeRules | null;
 }): Promise<ClassificationOutput> {
   // ---------------------------------------------------------------------------
   // 0. Cache check — hash the raw input for the key (first 16 hex chars of SHA-256)
@@ -144,7 +190,7 @@ Rules:
 - resumeBullet format: [Strong action verb] [what] [measurable result if available]
 - resumeSection: choose from Certifications, Projects, Experience, Education, Open Source, Awards
 - Lower score if the achievement is already represented in the provided resume or portfolio context
-- reasoning must explain both scores in plain English (10-500 chars)`;
+- reasoning must explain both scores in plain English (10-500 chars)${buildResumeRulesBlock(resumeRules)}`;
 
   // ---------------------------------------------------------------------------
   // 1. Call AI

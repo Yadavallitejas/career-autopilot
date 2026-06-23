@@ -2,6 +2,7 @@ import Script from "next/script";
 import { requireUser } from "@/lib/get-user";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
+import { redirect } from "next/navigation";
 import type { User } from "@/db/schema";
 
 // Server-side user context — passed directly as props to client boundary
@@ -14,6 +15,11 @@ export default async function DashboardLayout({
 }) {
   // Auth gate: redirects to /sign-in if not authenticated
   const user = await requireUser();
+
+  // Onboarding gate: new users must complete the wizard before using the app
+  if (!user.onboardingCompleted) {
+    redirect("/onboarding");
+  }
 
   const dashboardUser: DashboardUser = {
     id: user.id,

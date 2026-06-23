@@ -11,7 +11,7 @@ import {
   users,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { classifyAchievement } from "@/lib/ai/classify";
+import { classifyAchievement, type ResumeRules } from "@/lib/ai/classify";
 import { draftLinkedInPost, draftXPost } from "@/lib/ai/draft-post";
 import { addBulletToResume, buildResumeFromData } from "@/lib/resume/builder";
 import { sendEmail } from "@/lib/email/send";
@@ -105,15 +105,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   logStep("Step 1: Ownership verified", pipelineStart);
 
-  // ─── Step 2: Fetch context ───────────────────────────────────────────────
-  logStep("Step 2: Fetching resume + portfolio context", pipelineStart);
+  // ─── Step 2: Fetch context ────────────────────────────────────────────────
+  logStep("Step 2: Fetching resume + portfolio + user rules context", pipelineStart);
 
   let currentResume: (typeof resumeVersions.$inferSelect) | undefined;
   let existingResumeText = "";
   let existingPortfolioProjects: string[] = [];
+  let resumeRules: ResumeRules | null = null;
 
   try {
-    const [currentResumeRows, portfolioRows] = await Promise.all([
+    const [currentResumeRows, portfolioRows, userRows] = await Promise.all([
       db
         .select()
         .from(resumeVersions)
@@ -129,14 +130,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .from(portfolioConfig)
         .where(eq(portfolioConfig.userId, userId))
         .limit(1),
+      // Fetch user's custom resume rules — no extra round-trip (parallel)
+      db
+        .select({ resumeRules: users.resumeRules })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1),
     ]);
 
     currentResume = currentResumeRows[0];
     const portfolio = portfolioRows[0];
+    const userRow = userRows[0];
 
     existingResumeText = currentResume?.rawText ?? "";
     // Portfolio projects — currently stored as flat config; use deploy URL as context
     existingPortfolioProjects = portfolio?.deployUrl ? [portfolio.deployUrl] : [];
+    // Resume rules — cast from jsonb to typed object (null when not set)
+    resumeRules = (userRow?.resumeRules as ResumeRules | null) ?? null;
 
     logStep("Step 2: Context fetched", pipelineStart);
   } catch (contextErr) {
@@ -158,6 +168,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       rawInput: achievement.rawInput,
       existingResumeText,
       existingPortfolioProjects,
+      resumeRules,  // inject user's custom resume preferences into the AI prompt
     });
 
     await db

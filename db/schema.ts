@@ -48,6 +48,10 @@ export const users = pgTable(
     email: text("email").notNull(),
     plan: planEnum("plan").notNull().default("free"),
     voiceProfile: jsonb("voice_profile"),
+    // Onboarding — false until user completes the 3-step wizard
+    onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
+    // Custom resume rules — stored as JSON preferences for the AI pipeline
+    resumeRules: jsonb("resume_rules"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => ({

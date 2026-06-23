@@ -79,9 +79,10 @@ export async function callAI({
       console.log('[AI] Anthropic success, tokens:', response.usage.output_tokens)
       return text.text
     } catch (error: unknown) {
+      // Anthropic SDK ≥ 0.20 exposes APIError (with a `status` number property)
       const isRateLimit =
-        error instanceof Anthropic.APIStatusError &&
-        [429, 402, 529].includes(error.status)
+        error instanceof Anthropic.APIError &&
+        [429, 402, 529].includes((error as { status: number }).status);
       if (isRateLimit) {
         console.warn('[AI] Anthropic rate limited, falling back to Grok')
       } else {
