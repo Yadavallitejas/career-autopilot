@@ -121,16 +121,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // Non-fatal — we have the text, proceed without a stored file URL
     }
 
-    // 10. Get a signed URL (7-day TTL) — only if upload succeeded
-    let fileUrl = ''
-    if (!uploadError) {
-      const { data: urlData } = await supabase.storage
-        .from('resumes')
-        .createSignedUrl(storagePath, 60 * 60 * 24 * 7) // 7 days
-      fileUrl = urlData?.signedUrl ?? ''
-    }
-
-    // 11. Persist to DB — mark existing current as stale, insert new version
+    // 10. Persist to DB — mark existing current as stale, insert new version
+    // Store the storagePath in fileUrl
     const [newVersion] = await db.transaction(async (tx) => {
       await tx
         .update(resumeVersions)
@@ -147,7 +139,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .values({
           userId: user.id,
           templateId: 'uploaded',
-          fileUrl,
+          fileUrl: uploadError ? '' : storagePath,
           rawText: rawText.slice(0, 200_000), // cap at 200k chars
           isCurrent: true,
           changesSummary: `Uploaded ${file.name} (${(file.size / 1024).toFixed(0)} KB)`,
@@ -155,9 +147,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .returning()
     })
 
+    // We still return a temporary signed url to the client so they can display it immediately.
+    let signedUrl = ''
+    if (!uploadError) {
+      const { data: urlData } = await supabase.storage
+        .from('resumes')
+        .createSignedUrl(storagePath, 60 * 60) // 1 hour
+      signedUrl = urlData?.signedUrl ?? ''
+    }
+
     return NextResponse.json({
       versionId: newVersion?.id,
-      fileUrl,
+      fileUrl: signedUrl,
       rawTextLength: rawText.length,
       rawTextPreview: rawText.slice(0, 500),
       message: 'Resume uploaded successfully',

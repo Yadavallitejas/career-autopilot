@@ -90,5 +90,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     versionId = inserted!.id;
   });
 
-  return NextResponse.json({ versionId: versionId!, fileUrl });
+  const { getResumeSignedUrl } = await import("@/lib/storage/get-signed-url");
+  const signedUrl = await getResumeSignedUrl(fileUrl);
+
+  return NextResponse.json({ versionId: versionId!, fileUrl: signedUrl });
 }
