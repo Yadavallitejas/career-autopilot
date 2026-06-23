@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/onboarding",
   "/api/webhooks/(.*)",
   "/api/debug/(.*)",
+  "/api/portfolio/github-callback",  // GitHub OAuth callback — no session yet
   "/pricing",
   "/api/health",
 ]);

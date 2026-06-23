@@ -1,7 +1,8 @@
-"use client";
+'use client'
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { formatDistanceToNow, parseISO } from "date-fns";
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams as useNextSearchParams } from 'next/navigation'
+import { formatDistanceToNow, parseISO } from 'date-fns'
 import {
   Github,
   Star,
@@ -17,77 +18,80 @@ import {
   Clock,
   Zap,
   X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import type { PortfolioConfig } from "@/db/schema";
+  FileText,
+  Palette,
+  Code2,
+  Sparkles,
+  ArrowRight,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+import type { PortfolioConfig } from '@/db/schema'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface Props {
-  portfolioConfig: PortfolioConfig | null;
-  hasGitHub: boolean;
-  githubToken: string | null;
+  portfolioConfig: PortfolioConfig | null
+  hasGitHub: boolean
+  githubToken: string | null
 }
 
 interface GithubRepo {
-  id: number;
-  name: string;
-  full_name: string;
-  language: string | null;
-  stargazers_count: number;
-  pushed_at: string;
-  html_url: string;
-  description: string | null;
+  id: number
+  name: string
+  full_name: string
+  language: string | null
+  stargazers_count: number
+  pushed_at: string
+  html_url: string
+  description: string | null
 }
 
 interface DetectionResult {
-  projectType: string;
-  deployTarget: string;
-  buildCommand?: string;
-  outputDir?: string;
-  estimatedDeployMinutes: number;
+  projectType: string
+  deployTarget: string
+  buildCommand?: string
+  outputDir?: string
+  estimatedDeployMinutes: number
 }
 
-type WizardStep = "select" | "detect" | "deploy";
+type WizardStep = 'select' | 'detect' | 'deploy'
 
 // ---------------------------------------------------------------------------
 // Language colour map
 // ---------------------------------------------------------------------------
 
 const LANG_COLORS: Record<string, string> = {
-  TypeScript: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  JavaScript: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  Python: "bg-green-500/20 text-green-300 border-green-500/30",
-  Rust: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  Go: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-  Ruby: "bg-red-500/20 text-red-300 border-red-500/30",
-  Java: "bg-orange-600/20 text-orange-300 border-orange-600/30",
-  "C++": "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  C: "bg-slate-500/20 text-slate-300 border-slate-500/30",
-  "C#": "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  Svelte: "bg-rose-500/20 text-rose-300 border-rose-500/30",
-  Vue: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-};
+  TypeScript: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  JavaScript: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  Python: 'bg-green-500/20 text-green-300 border-green-500/30',
+  Rust: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  Go: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+  Ruby: 'bg-red-500/20 text-red-300 border-red-500/30',
+  Java: 'bg-orange-600/20 text-orange-300 border-orange-600/30',
+  'C++': 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  C: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+  'C#': 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  Svelte: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+  Vue: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+}
 
 function LangBadge({ lang }: { lang: string | null }) {
-  if (!lang) return null;
-  const cls =
-    LANG_COLORS[lang] ??
-    "bg-zinc-700/30 text-zinc-400 border-zinc-600/30";
+  if (!lang) return null
+  const cls = LANG_COLORS[lang] ?? 'bg-zinc-700/30 text-zinc-400 border-zinc-600/30'
   return (
     <span
       className={cn(
-        "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border",
+        'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border',
         cls
       )}
     >
       {lang}
     </span>
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -95,12 +99,13 @@ function LangBadge({ lang }: { lang: string | null }) {
 // ---------------------------------------------------------------------------
 
 const PLATFORM_LABELS: Record<string, string> = {
-  vercel: "Vercel",
-  netlify: "Netlify",
-  "github-pages": "GitHub Pages",
-  render: "Render",
-  railway: "Railway",
-};
+  vercel: 'Vercel',
+  netlify: 'Netlify',
+  'github-pages': 'GitHub Pages',
+  render: 'Render',
+  railway: 'Railway',
+  supabase: 'Supabase Storage',
+}
 
 function PlatformBadge({ platform }: { platform: string }) {
   return (
@@ -108,7 +113,7 @@ function PlatformBadge({ platform }: { platform: string }) {
       <Zap size={10} />
       {PLATFORM_LABELS[platform] ?? platform}
     </span>
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -116,48 +121,35 @@ function PlatformBadge({ platform }: { platform: string }) {
 // ---------------------------------------------------------------------------
 
 function Confetti() {
-  const colors = [
-    "#34d399", // emerald
-    "#60a5fa", // blue
-    "#f59e0b", // amber
-    "#f472b6", // pink
-    "#a78bfa", // violet
-  ];
-
+  const colors = ['#34d399', '#60a5fa', '#f59e0b', '#f472b6', '#a78bfa']
   return (
-    <div
-      className="pointer-events-none fixed inset-0 z-50 overflow-hidden"
-      aria-hidden
-    >
+    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-hidden>
       {Array.from({ length: 30 }).map((_, i) => {
-        const color = colors[i % colors.length];
-        const left = `${Math.random() * 100}%`;
-        const delay = `${Math.random() * 1.5}s`;
-        const dur = `${1.5 + Math.random() * 1.5}s`;
-        const size = `${6 + Math.floor(Math.random() * 8)}px`;
-
+        const color = colors[i % colors.length]
+        const left = `${Math.random() * 100}%`
+        const delay = `${Math.random() * 1.5}s`
+        const dur = `${1.5 + Math.random() * 1.5}s`
+        const size = `${6 + Math.floor(Math.random() * 8)}px`
         return (
           <span
             key={i}
             style={
               {
-                position: "absolute",
-                top: "-20px",
+                position: 'absolute',
+                top: '-20px',
                 left,
                 width: size,
                 height: size,
                 background: color,
-                borderRadius: Math.random() > 0.5 ? "50%" : "2px",
+                borderRadius: Math.random() > 0.5 ? '50%' : '2px',
                 animation: `confettiFall ${dur} ${delay} ease-in forwards`,
                 opacity: 0,
                 transform: `rotate(${Math.random() * 360}deg)`,
               } as React.CSSProperties
             }
           />
-        );
+        )
       })}
-
-      {/* Keyframe injection */}
       <style>{`
         @keyframes confettiFall {
           0%   { opacity: 1; transform: translateY(0) rotate(0deg); }
@@ -165,40 +157,332 @@ function Confetti() {
         }
       `}</style>
     </div>
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
-// STATE 1 — No GitHub connected
+// Resume Portfolio Generator (STEP 6 — no-GitHub path)
 // ---------------------------------------------------------------------------
 
-function ConnectGitHub() {
+const TEMPLATES = [
+  {
+    id: 'minimal' as const,
+    label: 'Minimal',
+    desc: 'Clean, light background. Works for everyone.',
+    icon: FileText,
+    recommended: true,
+  },
+  {
+    id: 'developer' as const,
+    label: 'Developer',
+    desc: 'Dark theme with terminal feel.',
+    icon: Code2,
+    recommended: false,
+  },
+  {
+    id: 'creative' as const,
+    label: 'Creative',
+    desc: 'Gradient accent, more visual flair.',
+    icon: Palette,
+    recommended: false,
+  },
+]
+
+function ResumePortfolioGenerator({
+  onGenerated,
+}: {
+  onGenerated: (url: string) => void
+}) {
+  const [template, setTemplate] = useState<'minimal' | 'developer' | 'creative'>('minimal')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleGenerate() {
+    setError(null)
+    setIsGenerating(true)
+    try {
+      const res = await fetch('/api/portfolio/resume-portfolio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template }),
+      })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
+      onGenerated(data.url!)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center">
-      <div className="w-20 h-20 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6">
-        <Github size={36} className="text-zinc-400" />
+    <div className="space-y-6 max-w-lg">
+      <div>
+        <h3 className="text-sm font-semibold text-white mb-1">
+          Choose a template
+        </h3>
+        <p className="text-xs text-zinc-500">
+          We'll generate a static HTML page from your resume and achievements — no GitHub needed.
+        </p>
       </div>
 
-      <h2 className="text-2xl font-bold text-white mb-3">Connect GitHub</h2>
-      <p className="text-sm text-zinc-400 max-w-sm mb-8 leading-relaxed">
-        Link your GitHub account to browse your repositories and deploy your
-        portfolio with one click — no manual configuration needed.
-      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {TEMPLATES.map((t) => {
+          const Icon = t.icon
+          const selected = template === t.id
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTemplate(t.id)}
+              className={cn(
+                'relative flex flex-col items-start gap-3 p-4 rounded-xl border text-left transition-all duration-200',
+                selected
+                  ? 'border-emerald-500 bg-emerald-500/10'
+                  : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600'
+              )}
+            >
+              {t.recommended && (
+                <span className="absolute top-2 right-2 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5">
+                  Recommended
+                </span>
+              )}
+              <Icon
+                size={20}
+                className={selected ? 'text-emerald-400' : 'text-zinc-500'}
+              />
+              <div>
+                <p className={cn('text-sm font-semibold', selected ? 'text-emerald-400' : 'text-zinc-200')}>
+                  {t.label}
+                </p>
+                <p className="text-xs text-zinc-500 mt-0.5 leading-snug">{t.desc}</p>
+              </div>
+            </button>
+          )
+        })}
+      </div>
 
-      <a
-        href="/sign-in?redirect_url=/portfolio"
-        className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-sm transition-colors shadow-lg shadow-black/20"
+      {error && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+          <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-red-400">{error}</p>
+        </div>
+      )}
+
+      <Button
+        onClick={handleGenerate}
+        disabled={isGenerating}
+        className="w-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold gap-2 disabled:opacity-60"
       >
-        <Github size={18} />
-        Connect GitHub account
-      </a>
+        {isGenerating ? (
+          <>
+            <Loader2 size={15} className="animate-spin" />
+            Generating portfolio…
+          </>
+        ) : (
+          <>
+            <Sparkles size={15} />
+            Generate my portfolio
+            <ArrowRight size={15} />
+          </>
+        )}
+      </Button>
 
-      <p className="text-xs text-zinc-600 mt-4 max-w-xs leading-relaxed">
-        You&apos;ll be redirected to your account settings to add GitHub as a
-        connected social provider.
+      <p className="text-[11px] text-zinc-600 text-center">
+        Generates instantly · Hosted on Supabase · Public URL ready to share
       </p>
     </div>
-  );
+  )
+}
+
+// ---------------------------------------------------------------------------
+// STATE 1 — No GitHub connected (two-tab layout)
+// ---------------------------------------------------------------------------
+
+const GITHUB_SETUP_STEPS = [
+  {
+    title: 'Go to github.com/signup',
+    description: 'Create a free account — only takes 2 minutes.',
+  },
+  {
+    title: 'Verify your email',
+    description: "GitHub sends you a confirmation link — check your inbox.",
+  },
+  {
+    title: 'Come back and connect',
+    description: 'Return here and click "Connect GitHub" to link your account.',
+  },
+]
+
+function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string) => void }) {
+  const [tab, setTab] = useState<'github' | 'resume'>('github')
+  const [showGuide, setShowGuide] = useState(false)
+  const searchParams = useNextSearchParams()
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+  useEffect(() => {
+    const connected = searchParams.get('github_connected')
+    const error = searchParams.get('github_error')
+    if (connected === '1') {
+      setToast({ type: 'success', msg: 'GitHub connected successfully! Refreshing…' })
+      setTimeout(() => window.location.reload(), 1500)
+    } else if (error) {
+      const msgs: Record<string, string> = {
+        github_denied: 'GitHub connection was cancelled.',
+        token_exchange_failed: 'Failed to get GitHub token — please try again.',
+        invalid_callback: 'Invalid OAuth callback — please try again.',
+        oauth_not_configured: 'GitHub OAuth is not configured. Contact support.',
+        server_error: 'Server error during connection. Please try again.',
+        db_error: 'Failed to save connection. Please try again.',
+      }
+      setToast({ type: 'error', msg: msgs[error] ?? 'GitHub connection failed.' })
+    }
+  }, [searchParams])
+
+  return (
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div
+          className={cn(
+            'flex items-center gap-3 p-3 rounded-xl border text-sm',
+            toast.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              : 'bg-red-500/10 border-red-500/20 text-red-400'
+          )}
+        >
+          {toast.type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Tab selector */}
+      <div className="flex gap-1 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
+        <button
+          onClick={() => setTab('github')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all',
+            tab === 'github'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-500 hover:text-zinc-300'
+          )}
+        >
+          <Github size={15} />
+          Connect GitHub
+        </button>
+        <button
+          onClick={() => setTab('resume')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all',
+            tab === 'resume'
+              ? 'bg-zinc-800 text-white shadow-sm'
+              : 'text-zinc-500 hover:text-zinc-300'
+          )}
+        >
+          <FileText size={15} />
+          Use resume instead
+        </button>
+      </div>
+
+      {/* Tab: Connect GitHub */}
+      {tab === 'github' && !showGuide && (
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-xl font-bold text-white">Connect your GitHub account</h2>
+            <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">
+              Link GitHub to browse your repositories and deploy your portfolio with one click.
+              No manual configuration needed.
+            </p>
+          </div>
+
+          {/* Direct OAuth button */}
+          <a
+            href="/api/portfolio/github-auth"
+            className="flex items-center justify-center gap-3 w-full py-3 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-sm transition-colors shadow-lg shadow-black/20"
+          >
+            <Github size={18} />
+            Continue with GitHub
+          </a>
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-zinc-800" />
+            <span className="text-xs text-zinc-600">Don't have GitHub?</span>
+            <div className="flex-1 h-px bg-zinc-800" />
+          </div>
+
+          <button
+            onClick={() => setShowGuide(true)}
+            className="w-full py-2.5 rounded-xl border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 text-sm font-medium transition-colors"
+          >
+            Create a GitHub account →
+          </button>
+        </div>
+      )}
+
+      {/* Tab: GitHub signup guide */}
+      {tab === 'github' && showGuide && (
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowGuide(false)}
+              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <X size={15} />
+            </button>
+            <div>
+              <h2 className="text-sm font-semibold text-white">Create a GitHub account</h2>
+              <p className="text-xs text-zinc-500">Free and takes 2 minutes</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {GITHUB_SETUP_STEPS.map((step, i) => (
+              <div key={i} className="flex gap-3 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                <div className="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
+                  {i + 1}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-200">{step.title}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">{step.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <a
+            href="https://github.com/signup"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-medium text-sm transition-colors"
+          >
+            <Github size={16} />
+            Create GitHub account →
+          </a>
+
+          <button
+            onClick={() => setShowGuide(false)}
+            className="w-full text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            I already have GitHub — connect it →
+          </button>
+        </div>
+      )}
+
+      {/* Tab: Resume portfolio */}
+      {tab === 'resume' && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">Portfolio from resume</h2>
+            <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">
+              We'll generate a beautiful static portfolio page from your resume and recent achievements.
+              No GitHub or build step required.
+            </p>
+          </div>
+          <ResumePortfolioGenerator onGenerated={onResumeGenerated} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -964,12 +1248,40 @@ export function PortfolioConfig({
   portfolioConfig: initialConfig,
   hasGitHub,
 }: Props) {
-  const [config, setConfig] = useState(initialConfig);
-  const [showWizard, setShowWizard] = useState(false);
+  const [config, setConfig] = useState(initialConfig)
+  const [showWizard, setShowWizard] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
 
-  // Case 1: No GitHub connected
+  function handleDeployComplete(url: string) {
+    setShowConfetti(true)
+    setTimeout(() => setShowConfetti(false), 4000)
+    setConfig((prev) =>
+      prev
+        ? { ...prev, deployUrl: url }
+        : ({
+            id: '',
+            userId: '',
+            deployUrl: url,
+            githubRepoUrl: null,
+            githubRepoId: null,
+            deployPlatform: null,
+            projectType: null,
+            template: 'minimal',
+            platformProjectId: null,
+            lastDeployed: null,
+          } as PortfolioConfig)
+    )
+    setShowWizard(false)
+  }
+
+  // Case 1: No GitHub connected — show two-tab UI
   if (!hasGitHub) {
-    return <ConnectGitHub />;
+    return (
+      <>
+        {showConfetti && <Confetti />}
+        <ConnectGitHub onResumeGenerated={handleDeployComplete} />
+      </>
+    )
   }
 
   // Case 2a: Configured and not re-deploying
@@ -979,31 +1291,13 @@ export function PortfolioConfig({
         config={config}
         onRedeploy={() => setShowWizard(true)}
       />
-    );
+    )
   }
 
   // Case 2b: Wizard (no config yet, or re-deploying)
   return (
     <RepoWizard
-      onComplete={(url) => {
-        setConfig((prev) =>
-          prev
-            ? { ...prev, deployUrl: url }
-            : ({
-                id: "",
-                userId: "",
-                deployUrl: url,
-                githubRepoUrl: null,
-                githubRepoId: null,
-                deployPlatform: null,
-                projectType: null,
-                template: "minimal",
-                platformProjectId: null,
-                lastDeployed: null,
-              } as PortfolioConfig)
-        );
-        setShowWizard(false);
-      }}
+      onComplete={handleDeployComplete}
     />
-  );
+  )
 }
