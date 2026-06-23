@@ -30,6 +30,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { Achievement, Post } from "@/db/schema";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -120,63 +122,41 @@ function StatCard({
 const FREE_LIMIT = 3;
 
 function MonthlyUsageCard({
-  completedCount,
+  monthlyCount,
   plan,
 }: {
-  completedCount: number;
+  monthlyCount: number;
   plan: "free" | "pro" | "team";
 }) {
-  const isFree = plan === "free";
-  const pct = isFree ? Math.min((completedCount / FREE_LIMIT) * 100, 100) : 100;
-  const barColor =
-    completedCount >= FREE_LIMIT && isFree
-      ? "bg-amber-500"
-      : "bg-emerald-500";
-
   return (
-    <Card className="bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 transition-colors">
-      <CardHeader className="pb-2 pt-5 px-5">
-        <CardTitle className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-          Monthly usage
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-5 pb-5 space-y-2">
-        {/* Count + bar */}
-        <div className="flex items-center gap-3">
-          {/* Inline progress bar — no extra dependency */}
-          <div className="flex-1 h-2 rounded-full bg-zinc-800 overflow-hidden">
-            <div
-              className={cn("h-full rounded-full transition-all duration-500", barColor)}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <span className="text-sm font-semibold text-white tabular-nums shrink-0">
-            {isFree ? `${completedCount}/${FREE_LIMIT}` : "∞"}
-          </span>
+    <Card className={cn("border", monthlyCount >= 3 && plan === 'free' ? "border-red-900 bg-red-950/20" : "border-zinc-800")}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-zinc-300">Monthly achievements</span>
+          {plan === 'free' && (
+            <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">Free</Badge>
+          )}
         </div>
-
-        {/* Human-readable label */}
-        <p className="text-xs text-zinc-500">
-          {isFree
-            ? completedCount === 0
-              ? `0 of ${FREE_LIMIT} achievements used this month`
-              : `${completedCount} of ${FREE_LIMIT} achievement${completedCount !== 1 ? "s" : ""} used this month`
-            : "Unlimited on Pro"}
-        </p>
-
-        {/* Upgrade nudge for free users near/at limit */}
-        {isFree && completedCount >= FREE_LIMIT && (
-          <Link
-            href="/settings?tab=billing"
-            className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
-          >
-            Upgrade to Pro for unlimited →
-          </Link>
+        {plan === 'free' ? (
+          <>
+            <div className="text-2xl font-bold text-white">{monthlyCount}/{3}</div>
+            <Progress value={(monthlyCount / 3) * 100} className="mt-2 h-1.5" />
+            {monthlyCount >= 3 ? (
+              <p className="text-xs text-red-400 mt-2">
+                Limit reached — <Link href="/settings?tab=billing" className="underline hover:text-red-300 transition-colors">upgrade to Pro</Link>
+              </p>
+            ) : (
+              <p className="text-xs text-zinc-500 mt-2">{3 - monthlyCount} remaining this month</p>
+            )}
+          </>
+        ) : (
+          <div className="text-2xl font-bold text-white">{monthlyCount} <span className="text-sm font-normal text-zinc-400">this month</span></div>
         )}
       </CardContent>
     </Card>
   );
 }
+
 
 function StatCardSkeleton() {
   return (
@@ -330,11 +310,13 @@ function RecentTable({
 
                 {/* Input preview (hidden on xs) */}
                 <TableCell className="hidden sm:table-cell max-w-[260px]">
-                  <p className="text-sm text-zinc-300 truncate">
-                    {a.rawInput.length > 60
-                      ? a.rawInput.slice(0, 60) + "…"
-                      : a.rawInput}
-                  </p>
+                  <Link href={`/achievement/${a.id}`} className="hover:underline transition-colors hover:text-emerald-400">
+                    <p className="text-sm text-zinc-300 truncate">
+                      {a.rawInput.length > 60
+                        ? a.rawInput.slice(0, 60) + "…"
+                        : a.rawInput}
+                    </p>
+                  </Link>
                 </TableCell>
 
                 {/* Status */}
@@ -402,11 +384,11 @@ export default async function DashboardPage() {
   const { userId: clerkId } = auth();
   if (!clerkId) redirect('/sign-in');
 
-  // Start of current calendar month (UTC midnight) — computed once here
+  // Start of current calendar month — computed once here
   // so getDashboardData doesn't need to redo it
   const startOfMonth = new Date();
-  startOfMonth.setUTCDate(1);
-  startOfMonth.setUTCHours(0, 0, 0, 0);
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
 
   // Resolve DB user row in parallel with a temporary fetch scoped to clerkId.
   // We can't start the userId-scoped queries until we have user.id, so we
@@ -478,7 +460,7 @@ export default async function DashboardPage() {
             sub={resumeCount > 0 ? "Active tracking" : "None yet"}
           />
           <MonthlyUsageCard
-            completedCount={monthlyCompletedCount}
+            monthlyCount={monthlyCompletedCount}
             plan={user.plan}
           />
         </div>

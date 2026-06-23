@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DashboardUser } from "@/app/(dashboard)/layout";
+import { Button } from "@/components/ui/button";
 
 interface SidebarProps {
   user: DashboardUser;
@@ -143,6 +144,18 @@ export function Sidebar({ user }: SidebarProps) {
             );
           })}
         </nav>
+
+        {user.plan === 'free' && (
+          <div className="p-4 border-t border-zinc-800 shrink-0">
+            <div className="rounded-lg bg-emerald-950/30 border border-emerald-900 p-3 space-y-2">
+              <div className="text-xs font-medium text-emerald-400">Upgrade to Pro</div>
+              <div className="text-xs text-zinc-400">Unlimited achievements, LinkedIn publish, custom resume</div>
+              <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-500 text-xs text-zinc-100 font-medium" asChild>
+                <Link href="/settings?tab=billing">Upgrade — ₹499/mo</Link>
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Bottom: user info + plan badge */}
         <div className="shrink-0 border-t border-zinc-800/70 p-3">

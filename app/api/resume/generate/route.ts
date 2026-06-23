@@ -81,7 +81,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         userId: user.id,
         templateId: "classic",
         fileUrl,
-        rawText,
+        rawText: JSON.stringify(resumeData),
         isCurrent: true,
         changesSummary: `Generated resume for ${resumeData.fullName}`,
       })

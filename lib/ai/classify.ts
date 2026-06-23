@@ -87,7 +87,7 @@ const SAFE_DEFAULTS: ClassificationOutput = {
 // Helper — strip markdown fences the AI may accidentally wrap JSON in
 // ---------------------------------------------------------------------------
 
-function stripMarkdownFences(raw: string): string {
+export function stripMarkdownFences(raw: string): string {
   // Remove ```json ... ``` or ``` ... ``` wrappers
   return raw
     .replace(/^```(?:json)?\s*/i, "")
@@ -99,7 +99,7 @@ function stripMarkdownFences(raw: string): string {
 // Helper — builds the resume-rules block appended to the classify prompt
 // ---------------------------------------------------------------------------
 
-function buildResumeRulesBlock(rules?: ResumeRules | null): string {
+export function buildResumeRulesBlock(rules?: ResumeRules | null): string {
   if (!rules) return "";
 
   const lines: string[] = ["\n\nUser resume preferences (respect these when generating the bullet and choosing a section):"];
