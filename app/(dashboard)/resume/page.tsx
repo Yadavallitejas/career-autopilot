@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { resumeVersions } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import dynamic from "next/dynamic";
+import { getResumeSignedUrl } from "@/lib/storage/get-signed-url";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Dynamically imported — 30KB component with LCS diff, modals, and upload logic.
@@ -34,7 +35,7 @@ export const metadata = {
 export default async function ResumePage() {
   const user = await requireUser();
 
-  const versions = await db
+  const dbVersions = await db
     .select({
       id: resumeVersions.id,
       fileUrl: resumeVersions.fileUrl,
@@ -47,6 +48,13 @@ export default async function ResumePage() {
     .from(resumeVersions)
     .where(eq(resumeVersions.userId, user.id))
     .orderBy(desc(resumeVersions.createdAt));
+
+  const versions = await Promise.all(
+    dbVersions.map(async (v) => ({
+      ...v,
+      fileUrl: await getResumeSignedUrl(v.fileUrl),
+    }))
+  );
 
   return (
     <div className="h-full pb-20 md:pb-0">

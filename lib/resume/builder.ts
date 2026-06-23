@@ -106,15 +106,11 @@ export async function generateResumePdf({
     );
   }
 
-  // 5. Get public URL
-  const { data: urlData } = supabase.storage
-    .from("resumes")
-    .getPublicUrl(filename);
-
-  // 6. Build rawText for AI context
+  // 5. Build rawText for AI context
   const rawText = buildRawText(resumeData);
 
-  return { fileUrl: urlData.publicUrl, rawText };
+  // Return the storage path (filename) directly
+  return { fileUrl: filename, rawText };
 }
 
 // ---------------------------------------------------------------------------
