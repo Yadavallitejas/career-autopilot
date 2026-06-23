@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/get-user";
 import { db } from "@/db";
-import { connectedAccounts, subscriptions } from "@/db/schema";
+import { connectedAccounts, subscriptions, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { SettingsClient } from "@/components/settings/settings-client";
 
@@ -50,11 +50,22 @@ export default async function SettingsPage({
     Promise.resolve(
       (() => {
         const vp = user.voiceProfile as Record<string, unknown> | null;
-        const prefs = vp?._prefs as { emailNotifications?: boolean } | undefined;
-        return { emailNotifications: prefs?.emailNotifications ?? true };
+        const prefs = vp?._prefs as { emailNotifications?: boolean; resumeRules?: any } | undefined;
+        return { 
+          emailNotifications: prefs?.emailNotifications ?? true,
+          resumeRules: prefs?.resumeRules ?? []
+        };
       })()
     ),
   ]);
+
+  // Read resumeRules directly from the user row (already loaded by requireUser)
+  const resumeRules = (user.resumeRules ?? null) as {
+    maxPages: 1 | 2 | null;
+    focus: "technical" | "creative" | "balanced" | null;
+    excludeSections: string[];
+    customInstruction: string | null;
+  } | null;
 
   return (
     <div className="min-h-full pb-20 md:pb-6">
@@ -72,6 +83,7 @@ export default async function SettingsPage({
         plan={user.plan}
         email={user.email}
         initialEmailNotifications={prefs.emailNotifications}
+        initialResumeRules={resumeRules}
         linkedinError={searchParams?.linkedin_error ?? null}
         linkedinConnected={searchParams?.linkedin_connected === "true"}
       />

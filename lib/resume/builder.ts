@@ -66,6 +66,57 @@ export interface ResumeData {
 }
 
 // ---------------------------------------------------------------------------
+// ResumeRules — user preferences respected when building the PDF
+// ---------------------------------------------------------------------------
+
+export interface ResumeRules {
+  maxPages?: 1 | 2 | null;
+  focus?: "technical" | "creative" | "balanced" | null;
+  excludeSections?: string[];
+  customInstruction?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// applyPageConstraints — trims ResumeData to fit within the page target
+// When maxPages === 1: cap bullets per role, limit certifications/projects/education
+// ---------------------------------------------------------------------------
+
+export function applyPageConstraints(
+  data: ResumeData,
+  maxPages: 1 | 2 | null | undefined
+): ResumeData {
+  if (!maxPages || maxPages !== 1) return data;
+
+  const d = structuredClone(data);
+
+  // Trim experience bullets — keep max 3 per role
+  d.experience = d.experience.map((exp) => ({
+    ...exp,
+    bullets: exp.bullets.slice(0, 3),
+  }));
+
+  // Cap to last 5 experience entries
+  d.experience = d.experience.slice(0, 5);
+
+  // Cap certifications to 4
+  d.certifications = d.certifications.slice(0, 4);
+
+  // Cap projects to 3
+  d.projects = d.projects.slice(0, 3);
+
+  // Keep only 1 education entry
+  d.education = d.education.slice(0, 1);
+
+  // Trim skills to 20 items
+  d.skills = d.skills.slice(0, 20);
+
+  // Remove summary if set (saves vertical space)
+  d.summary = undefined;
+
+  return d;
+}
+
+// ---------------------------------------------------------------------------
 // generateResumePdf — primary public export
 // ---------------------------------------------------------------------------
 
@@ -117,9 +168,13 @@ export async function generateResumePdf({
 // buildResumeFromData — simple buffer-only helper (used by QStash pipeline)
 // ---------------------------------------------------------------------------
 
-export async function buildResumeFromData(data: ResumeData): Promise<Buffer> {
+export async function buildResumeFromData(
+  data: ResumeData,
+  rules?: ResumeRules | null
+): Promise<Buffer> {
+  const constrained = applyPageConstraints(data, rules?.maxPages);
   const element = React.createElement(ClassicTemplate, {
-    data,
+    data: constrained,
     isPro: true, // no watermark when building from structured data
   }) as PDFDocElement;
   return ReactPDF.renderToBuffer(element);

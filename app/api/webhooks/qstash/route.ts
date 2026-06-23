@@ -310,7 +310,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             classifyResult.resumeSection ?? "Experience",
             classifyResult.resumeBullet
           );
-          const pdfBuffer = await buildResumeFromData(updatedData);
+          const pdfBuffer = await buildResumeFromData(updatedData, resumeRules);
 
           // Mark previous versions as not current
           await db

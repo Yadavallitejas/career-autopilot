@@ -23,6 +23,7 @@ import {
   Zap,
   ChevronRight,
   LogOut,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,13 @@ import type { ConnectedAccount, Subscription } from "@/db/schema";
 // Types
 // ---------------------------------------------------------------------------
 
+interface ResumeRulesData {
+  maxPages: 1 | 2 | null;
+  focus: "technical" | "creative" | "balanced" | null;
+  excludeSections: string[];
+  customInstruction: string | null;
+}
+
 interface Props {
   linkedinAccount: ConnectedAccount | null;
   githubConnected: boolean;
@@ -41,6 +49,7 @@ interface Props {
   email: string;
   linkedinError?: string | null;
   linkedinConnected?: boolean;
+  initialResumeRules?: ResumeRulesData | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -257,7 +266,183 @@ function ConnectedAccountsSection({
 }
 
 // ---------------------------------------------------------------------------
-// 2. PLAN & BILLING
+// 2. RESUME PREFERENCES
+// ---------------------------------------------------------------------------
+
+const FOCUS_OPTIONS = [
+  { value: "technical", label: "Technical / ATS", desc: "Keywords, metrics, stack names" },
+  { value: "creative", label: "Creative / Human", desc: "Natural language, story-driven" },
+  { value: "balanced", label: "Balanced", desc: "Best of both worlds" },
+] as const;
+
+const EXCLUDE_SECTION_OPTIONS = ["Skills", "Projects", "Certifications", "Summary", "Awards"] as const;
+
+function ResumePreferencesSection({
+  initial,
+  onFlash,
+}: {
+  initial: ResumeRulesData | null;
+  onFlash: (text: string, variant: ToastVariant) => void;
+}) {
+  const [maxPages, setMaxPages] = useState<1 | 2 | null>(initial?.maxPages ?? null);
+  const [focus, setFocus] = useState<"technical" | "creative" | "balanced" | null>(
+    initial?.focus ?? null
+  );
+  const [excludeSections, setExcludeSections] = useState<string[]>(
+    initial?.excludeSections ?? []
+  );
+  const [customInstruction, setCustomInstruction] = useState<string>(
+    initial?.customInstruction ?? ""
+  );
+  const [isSaving, startSave] = useTransition();
+  const [saved, setSaved] = useState(false);
+
+  function toggleExclude(section: string) {
+    setExcludeSections((prev) =>
+      prev.includes(section) ? prev.filter((s) => s !== section) : [...prev, section]
+    );
+  }
+
+  function handleSave() {
+    startSave(async () => {
+      try {
+        const res = await fetch("/api/user/resume-rules", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            maxPages,
+            focus,
+            excludeSections,
+            customInstruction: customInstruction.trim() || null,
+          }),
+        });
+        if (!res.ok) throw new Error("Save failed");
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+        onFlash("Resume preferences saved", "success");
+      } catch {
+        onFlash("Failed to save preferences — please try again", "error");
+      }
+    });
+  }
+
+  return (
+    <Section
+      title="Resume Preferences"
+      description="These rules guide how the AI builds and updates your resume. Applied on every automatic update."
+    >
+      {/* Page length */}
+      <div>
+        <p className="text-xs font-semibold text-zinc-400 mb-2">Resume length</p>
+        <div className="flex flex-wrap gap-2">
+          {([
+            { v: 1 as const, label: "1 page", sub: "< 5 yrs experience" },
+            { v: 2 as const, label: "2 pages", sub: "5+ yrs experience" },
+            { v: null, label: "No limit", sub: "Let AI decide" },
+          ] as const).map(({ v, label, sub }) => (
+            <button
+              key={String(v)}
+              onClick={() => setMaxPages(v)}
+              className={cn(
+                "flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all",
+                maxPages === v
+                  ? "border-emerald-500/60 bg-emerald-950/20 text-emerald-300"
+                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700"
+              )}
+            >
+              <span className="text-sm font-semibold">{label}</span>
+              <span className="text-xs mt-0.5 opacity-70">{sub}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Writing style */}
+      <div>
+        <p className="text-xs font-semibold text-zinc-400 mb-2">Writing style</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {FOCUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setFocus(focus === opt.value ? null : opt.value)}
+              className={cn(
+                "flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all",
+                focus === opt.value
+                  ? "border-emerald-500/60 bg-emerald-950/20 text-emerald-300"
+                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700"
+              )}
+            >
+              <span className="text-sm font-semibold">{opt.label}</span>
+              <span className="text-xs mt-0.5 opacity-70">{opt.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Exclude sections */}
+      <div>
+        <p className="text-xs font-semibold text-zinc-400 mb-2">Skip these sections</p>
+        <p className="text-xs text-zinc-600 mb-2.5">AI will not place bullets in these sections.</p>
+        <div className="flex flex-wrap gap-2">
+          {EXCLUDE_SECTION_OPTIONS.map((s) => (
+            <button
+              key={s}
+              onClick={() => toggleExclude(s)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all",
+                excludeSections.includes(s)
+                  ? "border-red-500/40 bg-red-950/20 text-red-400"
+                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700"
+              )}
+            >
+              {excludeSections.includes(s) ? "✕ " : ""}{s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Custom instruction */}
+      <div>
+        <p className="text-xs font-semibold text-zinc-400 mb-2">Custom instructions</p>
+        <textarea
+          rows={3}
+          value={customInstruction}
+          onChange={(e) => setCustomInstruction(e.target.value)}
+          placeholder="e.g. Always include my GitHub link. Never add GPA. Focus on leadership when relevant."
+          maxLength={500}
+          className="w-full bg-zinc-900 border border-zinc-700 hover:border-zinc-600 focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 resize-none focus:outline-none transition-colors"
+        />
+        <p className="text-xs text-zinc-600 mt-1">
+          {customInstruction.length}/500 — The AI follows these on every resume update
+        </p>
+      </div>
+
+      {/* Save */}
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm gap-2"
+        >
+          {isSaving ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : saved ? (
+            <CheckCircle2 size={14} />
+          ) : (
+            <FileText size={14} />
+          )}
+          {saved ? "Saved!" : "Save preferences"}
+        </Button>
+        {saved && (
+          <p className="text-xs text-emerald-400">Applied on the next resume update</p>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 3. PLAN & BILLING
 // ---------------------------------------------------------------------------
 
 function CancelDialog({
@@ -708,6 +893,7 @@ export function SettingsClient({
   plan,
   email: _email,
   initialEmailNotifications,
+  initialResumeRules,
   linkedinError,
   linkedinConnected,
 }: Props & { initialEmailNotifications: boolean }) {
@@ -731,6 +917,11 @@ export function SettingsClient({
       <ConnectedAccountsSection
         linkedinAccount={linkedinAccount}
         githubConnected={githubConnected}
+        onFlash={flash}
+      />
+
+      <ResumePreferencesSection
+        initial={initialResumeRules ?? null}
         onFlash={flash}
       />
 
