@@ -151,6 +151,7 @@ function ConnectedAccountsSection({
   onFlash: (text: string, variant: ToastVariant) => void;
 }) {
   const [isDisconnecting, startDisconnect] = useTransition();
+  const [isDisconnectingGithub, startDisconnectGithub] = useTransition();
   const router = useRouter();
 
   function buildLinkedInOAuthUrl() {
@@ -173,6 +174,20 @@ function ConnectedAccountsSection({
       });
       if (res.ok) {
         onFlash("LinkedIn disconnected", "default");
+        router.refresh();
+      } else {
+        onFlash("Failed to disconnect — please try again", "error");
+      }
+    });
+  }
+
+  function handleDisconnectGithub() {
+    startDisconnectGithub(async () => {
+      const res = await fetch("/api/connected-accounts/github", {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        onFlash("GitHub disconnected", "default");
         router.refresh();
       } else {
         onFlash("Failed to disconnect — please try again", "error");
@@ -243,7 +258,7 @@ function ConnectedAccountsSection({
             {githubConnected ? (
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <p className="text-xs text-zinc-400">Connected via Clerk</p>
+                <p className="text-xs text-zinc-400">Connected</p>
               </div>
             ) : (
               <p className="text-xs text-zinc-600">Not connected</p>
@@ -251,15 +266,30 @@ function ConnectedAccountsSection({
           </div>
         </div>
 
-        <a
-          href="https://accounts.clerk.dev/user/security"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          Manage in Clerk
-          <ExternalLink size={11} />
-        </a>
+        {githubConnected ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDisconnectGithub}
+            disabled={isDisconnectingGithub}
+            className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10 text-xs gap-1.5"
+          >
+            {isDisconnectingGithub ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <X size={12} />
+            )}
+            Disconnect
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            asChild
+            className="bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold"
+          >
+            <a href="/api/portfolio/github-auth">Connect GitHub</a>
+          </Button>
+        )}
       </div>
     </Section>
   );
@@ -650,13 +680,16 @@ const THEME_OPTIONS: { value: ThemeOption; label: string; icon: React.ReactNode 
 
 function PreferencesSection({
   initialEmailNotifications,
+  initialAutoApplyResumeUpdates,
   onFlash,
 }: {
   initialEmailNotifications: boolean;
+  initialAutoApplyResumeUpdates: boolean;
   onFlash: (text: string, variant: ToastVariant) => void;
 }) {
   const { theme, setTheme } = useTheme();
   const [emailNotif, setEmailNotif] = useState(initialEmailNotifications);
+  const [autoApplyResume, setAutoApplyResume] = useState(initialAutoApplyResumeUpdates);
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleEmailNotifToggle() {
@@ -676,6 +709,29 @@ function PreferencesSection({
       );
     } catch {
       setEmailNotif(!next); // revert
+      onFlash("Failed to save preference", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleAutoApplyResumeToggle() {
+    const next = !autoApplyResume;
+    setAutoApplyResume(next);
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/user/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoApplyResumeUpdates: next }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      onFlash(
+        next ? "Automatic resume updates enabled" : "Automatic resume updates disabled",
+        "default"
+      );
+    } catch {
+      setAutoApplyResume(!next); // revert
       onFlash("Failed to save preference", "error");
     } finally {
       setIsSaving(false);
@@ -740,6 +796,45 @@ function PreferencesSection({
             className={cn(
               "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform",
               emailNotif ? "translate-x-5" : "translate-x-0"
+            )}
+          />
+        </button>
+      </div>
+
+      {/* Automatically apply resume suggestions */}
+      <div className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
+            {autoApplyResume ? (
+              <FileText size={16} className="text-emerald-400" />
+            ) : (
+              <FileText size={16} className="text-zinc-600" />
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">Automatically apply resume suggestions</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Instantly regenerate your resume PDF when career achievements are logged
+            </p>
+          </div>
+        </div>
+
+        {/* Toggle switch */}
+        <button
+          role="switch"
+          aria-checked={autoApplyResume}
+          onClick={handleAutoApplyResumeToggle}
+          disabled={isSaving}
+          className={cn(
+            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
+            autoApplyResume ? "bg-emerald-500" : "bg-zinc-700",
+            isSaving && "opacity-60 cursor-not-allowed"
+          )}
+        >
+          <span
+            className={cn(
+              "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform",
+              autoApplyResume ? "translate-x-5" : "translate-x-0"
             )}
           />
         </button>
@@ -894,9 +989,13 @@ export function SettingsClient({
   email: _email,
   initialEmailNotifications,
   initialResumeRules,
+  initialAutoApplyResumeUpdates,
   linkedinError,
   linkedinConnected,
-}: Props & { initialEmailNotifications: boolean }) {
+}: Props & {
+  initialEmailNotifications: boolean;
+  initialAutoApplyResumeUpdates: boolean;
+}) {
   const { msg, flash } = useFlash();
 
   // Show OAuth result flash on mount (from URL search params)
@@ -933,6 +1032,7 @@ export function SettingsClient({
 
       <PreferencesSection
         initialEmailNotifications={initialEmailNotifications}
+        initialAutoApplyResumeUpdates={initialAutoApplyResumeUpdates}
         onFlash={flash}
       />
 

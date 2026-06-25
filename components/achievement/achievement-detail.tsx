@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { User } from "@/db/schema";
 
 interface AchievementDetailProps {
   achievement: {
@@ -29,6 +30,7 @@ interface AchievementDetailProps {
     draftText: string;
     status: string;
   }[];
+  user: User;
 }
 
 type ToastVariant = "success" | "error" | "default";
@@ -60,6 +62,7 @@ function FlashBanner({
 export function AchievementDetail({
   achievement: initialAchievement,
   posts,
+  user,
 }: AchievementDetailProps) {
   const [achievement, setAchievement] = useState(initialAchievement);
   const [isPending, startTransition] = useTransition();
@@ -100,6 +103,60 @@ export function AchievementDetail({
           }));
           showToast("Removed from resume successfully!", "success");
         }
+      } catch (err) {
+        console.error(err);
+        showToast("Network error. Please try again.", "error");
+      }
+    });
+  };
+
+  const handleCopyBullet = () => {
+    if (achievement.resumeBullet) {
+      navigator.clipboard.writeText(achievement.resumeBullet);
+      showToast("Copied to clipboard!", "success");
+    }
+  };
+
+  const handleGenerateWithTemplate = async () => {
+    startTransition(async () => {
+      try {
+        const voice = (user.voiceProfile as { fullName?: string; jobTitle?: string; industry?: string }) || {};
+        const fullName = voice.fullName || user.email.split("@")[0] || "Your Name";
+        
+        const resumeData = {
+          fullName,
+          email: user.email,
+          phone: "",
+          location: "",
+          summary: `Results-driven professional specializing in ${voice.industry || "software development"}.`,
+          experience: achievement.resumeBullet ? [
+            {
+              company: "Current Company",
+              title: voice.jobTitle || "Professional Experience",
+              startDate: "2024",
+              bullets: [achievement.resumeBullet],
+            }
+          ] : [],
+          education: [],
+          skills: [],
+        };
+
+        const res = await fetch("/api/resume/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(resumeData),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.error || "Generation failed", "error");
+          return;
+        }
+
+        showToast("Switched to template and generated PDF successfully!", "success");
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
       } catch (err) {
         console.error(err);
         showToast("Network error. Please try again.", "error");
@@ -264,7 +321,34 @@ export function AchievementDetail({
                 <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Resume Integration</h3>
               </div>
 
-              {achievement.classifiedResumeWorthy === false ? (
+              {user.resumeSource === "uploaded" && achievement.classifiedResumeWorthy === true ? (
+                <Card className="border-amber-900 bg-amber-950/20">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="text-sm font-medium text-amber-200">We have a resume suggestion for you</div>
+                    <div className="text-xs text-zinc-400">
+                      Since you uploaded your own resume, we won't change its formatting automatically.
+                    </div>
+                    <div className="rounded bg-zinc-900 p-3 text-sm text-zinc-200">
+                      <span className="text-zinc-500">Add to "{achievement.resumeSection || "Experience"}":</span><br/>
+                      {achievement.resumeBullet}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button size="sm" variant="outline" className="w-full border-zinc-700 text-xs font-bold hover:bg-zinc-800 hover:text-white" onClick={handleCopyBullet} disabled={isPending}>
+                        Copy this text
+                      </Button>
+                      <Button size="sm" variant="outline" className="w-full border-zinc-700 text-xs font-bold hover:bg-zinc-800 hover:text-white" onClick={handleGenerateWithTemplate} disabled={isPending}>
+                        {isPending ? (
+                          <Loader2 size={13} className="animate-spin mr-1.5" />
+                        ) : null}
+                        Generate a new PDF with our template instead
+                      </Button>
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      Tip: paste the copied text into your own resume, then re-upload it to keep it current.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : achievement.classifiedResumeWorthy === false ? (
                 <div className="border border-zinc-800 rounded-lg p-4 bg-zinc-950/20 space-y-3">
                   <div>
                     <div className="text-sm font-medium text-zinc-200">Resume update was skipped</div>

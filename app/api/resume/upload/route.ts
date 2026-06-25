@@ -121,7 +121,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // Non-fatal — we have the text, proceed without a stored file URL
     }
 
-    // 10. Persist to DB — mark existing current as stale, insert new version
+        // 10. Persist to DB — mark existing current as stale, insert new version
     // Store the storagePath in fileUrl
     const [newVersion] = await db.transaction(async (tx) => {
       await tx
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           )
         )
 
-      return tx
+      const inserted = await tx
         .insert(resumeVersions)
         .values({
           userId: user.id,
@@ -145,6 +145,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           changesSummary: `Uploaded ${file.name} (${(file.size / 1024).toFixed(0)} KB)`,
         })
         .returning()
+
+      await tx
+        .update(users)
+        .set({ resumeSource: 'uploaded', autoApplyResumeUpdates: false })
+        .where(eq(users.id, user.id))
+
+      return inserted
     })
 
     // We still return a temporary signed url to the client so they can display it immediately.

@@ -285,66 +285,75 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let resumeUpdated = false;
 
   if (classifyResult.resumeWorthy && classifyResult.resumeBullet) {
-    try {
-      if (!currentResume) {
-        console.warn(
-          "[qstash] Achievement is resume-worthy but user has no current resume — skipping resume update"
-        );
-      } else {
-        // Attempt to parse the stored resume text as structured JSON data.
-        // Resume rawText is plain text (not JSON) for now — use the builder's
-        // addBulletToResume when it's implemented. For now we record the bullet
-        // in the DB and defer PDF generation to the resume builder stub.
-        const existingData = (() => {
-          try {
-            return JSON.parse(currentResume.rawText);
-          } catch {
-            // rawText is plain text, not JSON — builder will handle conversion
-            return null;
-          }
-        })();
-
-        if (existingData) {
-          const updatedData = await addBulletToResume(
-            existingData,
-            classifyResult.resumeSection ?? "Experience",
-            classifyResult.resumeBullet
-          );
-          const pdfBuffer = await buildResumeFromData(updatedData, resumeRules);
-
-          // Mark previous versions as not current
-          await db
-            .update(resumeVersions)
-            .set({ isCurrent: false })
-            .where(
-              and(
-                eq(resumeVersions.userId, userId),
-                eq(resumeVersions.isCurrent, true)
-              )
-            );
-
-          // Insert new current version
-          await db.insert(resumeVersions).values({
-            userId,
-            templateId: currentResume.templateId ?? "classic",
-            // PDF upload to Supabase deferred — store as data URI for now
-            fileUrl: `data:application/pdf;base64,${pdfBuffer.toString("base64")}`,
-            rawText: JSON.stringify(updatedData),
-            isCurrent: true,
-            changesSummary: `Added bullet to ${classifyResult.resumeSection ?? "Experience"}: ${classifyResult.resumeBullet.slice(0, 80)}…`,
-          });
-
-          resumeUpdated = true;
-          logStep("Step 7: Resume updated", pipelineStart);
-        } else {
+    if (user && user.resumeSource === "built" && user.autoApplyResumeUpdates) {
+      try {
+        if (!currentResume) {
           console.warn(
-            "[qstash] Resume rawText is plain text — skipping structured update until builder is implemented"
+            "[qstash] Achievement is resume-worthy but user has no current resume — skipping resume update"
           );
+        } else {
+          // Attempt to parse the stored resume text as structured JSON data.
+          // Resume rawText is plain text (not JSON) for now — use the builder's
+          // addBulletToResume when it's implemented. For now we record the bullet
+          // in the DB and defer PDF generation to the resume builder stub.
+          const existingData = (() => {
+            try {
+              return JSON.parse(currentResume.rawText);
+            } catch {
+              // rawText is plain text, not JSON — builder will handle conversion
+              return null;
+            }
+          })();
+
+          if (existingData) {
+            const updatedData = await addBulletToResume(
+              existingData,
+              classifyResult.resumeSection ?? "Experience",
+              classifyResult.resumeBullet
+            );
+            const pdfBuffer = await buildResumeFromData(updatedData, resumeRules);
+
+            // Mark previous versions as not current
+            await db
+              .update(resumeVersions)
+              .set({ isCurrent: false })
+              .where(
+                and(
+                  eq(resumeVersions.userId, userId),
+                  eq(resumeVersions.isCurrent, true)
+                )
+              );
+
+            // Insert new current version
+            await db.insert(resumeVersions).values({
+              userId,
+              templateId: currentResume.templateId ?? "classic",
+              // PDF upload to Supabase deferred — store as data URI for now
+              fileUrl: `data:application/pdf;base64,${pdfBuffer.toString("base64")}`,
+              rawText: JSON.stringify(updatedData),
+              isCurrent: true,
+              changesSummary: `Added bullet to ${classifyResult.resumeSection ?? "Experience"}: ${classifyResult.resumeBullet.slice(0, 80)}…`,
+            });
+
+            resumeUpdated = true;
+            logStep("Step 7: Resume updated", pipelineStart);
+          } else {
+            console.warn(
+              "[qstash] Resume rawText is plain text — skipping structured update until builder is implemented"
+            );
+          }
         }
+      } catch (resumeErr) {
+        // Resume update is non-fatal — achievement still completes
+        console.error("[qstash] Resume update failed:", resumeErr);
       }
-    } catch (resumeErr) {
-      // Resume update is non-fatal — achievement still completes
-      console.error("[qstash] Resume update failed:", resumeErr);
+    } else {
+      // User uploaded their own resume — do NOT touch their file.
+      // Just store the suggestion as pending (already stored on the achievement
+      // via resumeBullet/resumeSection columns — no action needed here).
+      // The achievement record already has classifiedResumeWorthy=true, 
+      // resumeBullet, resumeSection set from the classification step.
+      console.log('[Pipeline] Resume suggestion stored as pending — user resume is uploaded type, not auto-applying')
     }
   } else {
     logStep(

@@ -51,6 +51,7 @@ export default async function AchievementDetailPage({ params }: PageProps) {
       <AchievementDetail
         achievement={achievement}
         posts={postRows}
+        user={user}
       />
     </div>
   );

@@ -15,6 +15,13 @@
       "when": 1782137167899,
       "tag": "0001_absent_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782390190606,
+      "tag": "0002_cynical_wildside",
+      "breakpoints": true
     }
   ]
 }

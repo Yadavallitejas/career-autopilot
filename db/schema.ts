@@ -40,6 +40,8 @@ export const postStatusEnum = pgEnum("post_status", [
 // Users
 // ---------------------------------------------------------------------------
 
+export const resumeSourceEnum = pgEnum("resume_source", ["uploaded", "built", "none"]);
+
 export const users = pgTable(
   "users",
   {
@@ -52,6 +54,8 @@ export const users = pgTable(
     onboardingCompleted: boolean("onboarding_completed").default(false).notNull(),
     // Custom resume rules — stored as JSON preferences for the AI pipeline
     resumeRules: jsonb("resume_rules"),
+    resumeSource: resumeSourceEnum("resume_source").default("none").notNull(),
+    autoApplyResumeUpdates: boolean("auto_apply_resume_updates").default(false).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => ({

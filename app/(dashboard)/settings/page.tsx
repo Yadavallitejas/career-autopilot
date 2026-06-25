@@ -84,6 +84,7 @@ export default async function SettingsPage({
         email={user.email}
         initialEmailNotifications={prefs.emailNotifications}
         initialResumeRules={resumeRules}
+        initialAutoApplyResumeUpdates={user.autoApplyResumeUpdates}
         linkedinError={searchParams?.linkedin_error ?? null}
         linkedinConnected={searchParams?.linkedin_connected === "true"}
       />

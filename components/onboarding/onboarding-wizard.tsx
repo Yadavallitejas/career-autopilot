@@ -825,12 +825,6 @@ function Step3GitHub({ onComplete, onSkip }: { onComplete: () => void; onSkip: (
   const [mode, setMode] = useState<"connect" | "no_github" | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
 
-  async function handleConnect() {
-    // GitHub OAuth via Clerk — just surface the Clerk account page for now
-    window.open("https://accounts.clerk.dev", "_blank");
-    // User returns and clicks "I've connected"
-  }
-
   return (
     <div className="space-y-8">
       <div>
@@ -894,24 +888,24 @@ function Step3GitHub({ onComplete, onSkip }: { onComplete: () => void; onSkip: (
                 <Github size={20} className="text-violet-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Connect via Clerk</p>
+                <p className="text-sm font-semibold text-white">Connect GitHub</p>
                 <p className="text-xs text-zinc-500">
-                  Uses your Clerk account settings — secure OAuth flow.
+                  Secure OAuth flow with GitHub.
                 </p>
               </div>
             </div>
             <p className="text-xs text-zinc-600 leading-relaxed">
-              After connecting, return here and click "I've connected GitHub" below.
+              After connecting, return here and click "I've connected GitHub" below to continue.
               You can also connect from <strong className="text-zinc-400">Settings → Connected Accounts</strong> at any time.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handleConnect}
+              <a
+                href="/api/portfolio/github-auth"
                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
               >
                 <Github size={15} />
-                Open account settings
-              </button>
+                Connect GitHub
+              </a>
               <button
                 onClick={onComplete}
                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 text-sm font-medium transition-colors"

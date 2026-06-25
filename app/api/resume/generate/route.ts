@@ -87,6 +87,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       })
       .returning({ id: resumeVersions.id });
 
+    // Update users: resumeSource: 'built', autoApplyResumeUpdates: true
+    await tx
+      .update(users)
+      .set({ resumeSource: "built", autoApplyResumeUpdates: true })
+      .where(eq(users.id, user.id));
+
     versionId = inserted!.id;
   });
 
