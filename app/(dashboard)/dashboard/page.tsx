@@ -105,15 +105,15 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <Card className="bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 transition-colors">
+    <Card className="bg-card/60 border-border hover:border-zinc-500/50 transition-colors">
       <CardHeader className="pb-2 pt-5 px-5">
-        <CardTitle className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent className="px-5 pb-5">
-        <p className="text-3xl font-bold text-white tabular-nums">{value}</p>
-        {sub && <p className="text-xs text-zinc-500 mt-1">{sub}</p>}
+        <p className="text-3xl font-bold text-foreground tabular-nums">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -129,28 +129,28 @@ function MonthlyUsageCard({
   plan: "free" | "pro" | "team";
 }) {
   return (
-    <Card className={cn("border", monthlyCount >= 3 && plan === 'free' ? "border-red-900 bg-red-950/20" : "border-zinc-800")}>
+    <Card className={cn("border", monthlyCount >= 3 && plan === 'free' ? "border-destructive bg-destructive/10" : "border-border")}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-zinc-300">Monthly achievements</span>
+          <span className="text-sm font-medium text-foreground">Monthly achievements</span>
           {plan === 'free' && (
-            <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">Free</Badge>
+            <Badge variant="outline" className="text-xs border-border text-muted-foreground">Free</Badge>
           )}
         </div>
         {plan === 'free' ? (
           <>
-            <div className="text-2xl font-bold text-white">{monthlyCount}/{3}</div>
+            <div className="text-2xl font-bold text-foreground">{monthlyCount}/{3}</div>
             <Progress value={(monthlyCount / 3) * 100} className="mt-2 h-1.5" />
             {monthlyCount >= 3 ? (
-              <p className="text-xs text-red-400 mt-2">
-                Limit reached — <Link href="/settings?tab=billing" className="underline hover:text-red-300 transition-colors">upgrade to Pro</Link>
+              <p className="text-xs text-destructive mt-2">
+                Limit reached — <Link href="/settings?tab=billing" className="underline hover:text-red-400 transition-colors">upgrade to Pro</Link>
               </p>
             ) : (
-              <p className="text-xs text-zinc-500 mt-2">{3 - monthlyCount} remaining this month</p>
+              <p className="text-xs text-muted-foreground mt-2">{3 - monthlyCount} remaining this month</p>
             )}
           </>
         ) : (
-          <div className="text-2xl font-bold text-white">{monthlyCount} <span className="text-sm font-normal text-zinc-400">this month</span></div>
+          <div className="text-2xl font-bold text-foreground">{monthlyCount} <span className="text-sm font-normal text-muted-foreground">this month</span></div>
         )}
       </CardContent>
     </Card>
@@ -160,7 +160,7 @@ function MonthlyUsageCard({
 
 function StatCardSkeleton() {
   return (
-    <Card className="bg-zinc-900/60 border-zinc-800">
+    <Card className="bg-card/60 border-border">
       <CardHeader className="pb-2 pt-5 px-5">
         <Skeleton className="h-3 w-24" />
       </CardHeader>
@@ -219,7 +219,7 @@ function StatusBadge({ status }: { status: string }) {
 function TypeBadge({ type }: { type: string | null }) {
   if (!type) return <span className="text-zinc-600 text-xs">—</span>;
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border">
       {type}
     </span>
   );
@@ -251,10 +251,10 @@ function EmptyState() {
         <div className="absolute top-1/2 right-1 -translate-y-1/2 translate-x-1/2 w-2 h-2 rounded-full bg-zinc-700" />
       </div>
 
-      <h2 className="text-xl font-bold text-white mb-2">
+      <h2 className="text-xl font-bold text-foreground mb-2">
         Your career story starts here
       </h2>
-      <p className="text-sm text-zinc-400 max-w-sm mb-8 leading-relaxed">
+      <p className="text-sm text-muted-foreground max-w-sm mb-8 leading-relaxed">
         Log your first achievement and we&apos;ll automatically draft your
         LinkedIn post, update your resume, and keep your portfolio fresh.
       </p>
@@ -280,10 +280,10 @@ function RecentTable({
   if (achievements.length === 0) return <EmptyState />;
 
   return (
-    <div className="rounded-xl border border-zinc-800 overflow-hidden">
+    <div className="rounded-xl border border-border overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="border-zinc-800 hover:bg-transparent">
+          <TableRow className="border-border hover:bg-transparent">
             <TableHead>Date</TableHead>
             <TableHead>Type</TableHead>
             <TableHead className="hidden sm:table-cell">Achievement</TableHead>
@@ -297,9 +297,9 @@ function RecentTable({
               (p) => p.platform === "linkedin"
             );
             return (
-              <TableRow key={a.id} className="border-zinc-800">
+              <TableRow key={a.id} className="border-border">
                 {/* Date */}
-                <TableCell className="text-xs text-zinc-500 whitespace-nowrap">
+                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                   {format(new Date(a.createdAt), "MMM d, yy")}
                 </TableCell>
 
@@ -311,7 +311,7 @@ function RecentTable({
                 {/* Input preview (hidden on xs) */}
                 <TableCell className="hidden sm:table-cell max-w-[260px]">
                   <Link href={`/achievement/${a.id}`} className="hover:underline transition-colors hover:text-emerald-400">
-                    <p className="text-sm text-zinc-300 truncate">
+                    <p className="text-sm text-foreground truncate">
                       {a.rawInput.length > 60
                         ? a.rawInput.slice(0, 60) + "…"
                         : a.rawInput}
@@ -353,8 +353,8 @@ function RecentTable({
 
 function TableSkeleton() {
   return (
-    <div className="rounded-xl border border-zinc-800 overflow-hidden">
-      <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/40">
+    <div className="rounded-xl border border-border overflow-hidden">
+      <div className="px-4 py-3 border-b border-border bg-muted/40">
         <div className="flex gap-8">
           {["w-12", "w-16", "w-48", "w-20", "w-20"].map((w, i) => (
             <Skeleton key={i} className={cn("h-3", w)} />
@@ -362,7 +362,7 @@ function TableSkeleton() {
         </div>
       </div>
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="px-4 py-4 border-b border-zinc-800 last:border-0 flex items-center gap-8">
+        <div key={i} className="px-4 py-4 border-b border-border last:border-0 flex items-center gap-8">
           <Skeleton className="h-3 w-12" />
           <Skeleton className="h-5 w-16 rounded-full" />
           <Skeleton className="h-3 w-48 hidden sm:block" />
@@ -415,8 +415,8 @@ export default async function DashboardPage() {
       {/* ── Top row: quick-add + stats ─────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-white">Overview</h2>
-          <p className="text-sm text-zinc-500 mt-0.5">
+          <h2 className="text-lg font-semibold text-foreground">Overview</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {achievementCount === 0
               ? "Start by logging your first achievement"
               : `${achievementCount} achievement${achievementCount !== 1 ? "s" : ""} logged`}
@@ -469,13 +469,13 @@ export default async function DashboardPage() {
       {/* ── Recent achievements ─────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-zinc-300">
+          <h3 className="text-sm font-semibold text-foreground">
             Recent Achievements
           </h3>
           {achievementCount > 5 && (
             <Link
               href="/achievement"
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               View all →
             </Link>

@@ -175,12 +175,16 @@ export async function classifyAchievement({
     }
   }
 
+  const resumeContextBlock = existingResumeText?.trim()
+    ? `Existing resume context (first 2000 chars): "${existingResumeText.slice(0, 2000)}"`
+    : `IMPORTANT: This user has no resume on file. Score conservatively and note in your reasoning that this is a baseline score without resume context, not a comparative score. Recommend they add a resume for accurate future scoring.`;
+
   const prompt = `Evaluate this professional achievement and return JSON matching this schema exactly:
 { "resumeScore": 1-10, "portfolioScore": 1-10, "achievementType": one of ["certification","project","award","job_change","education","open_source","publication","other"], "reasoning": "string (10-500 chars)", "resumeSection": "string or null", "resumeBullet": "ATS-optimized bullet or null" }
 
 Achievement: "${rawInput}"
 
-Existing resume context (first 2000 chars): "${existingResumeText.slice(0, 2000)}"
+${resumeContextBlock}
 
 Existing portfolio projects: ${JSON.stringify(existingPortfolioProjects)}
 

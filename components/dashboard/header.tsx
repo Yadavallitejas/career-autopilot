@@ -54,17 +54,17 @@ export function Header() {
   return (
     <>
       {/* ── Top header bar ─────────────────────────────────────── */}
-      <header className="h-14 shrink-0 flex items-center justify-between px-4 sm:px-6 border-b border-zinc-800/70 bg-zinc-950/80 backdrop-blur-sm">
+      <header className="h-14 shrink-0 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-background/80 backdrop-blur-sm">
         {/* Left: hamburger (mobile) + page title */}
         <div className="flex items-center gap-3">
           <button
-            className="md:hidden p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+            className="md:hidden p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent transition-colors"
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
           >
             <Menu size={20} />
           </button>
-          <h1 className="text-sm font-semibold text-zinc-100 tracking-tight">
+          <h1 className="text-sm font-semibold text-foreground tracking-tight">
             {pageTitle}
           </h1>
         </div>
@@ -83,7 +83,7 @@ export function Header() {
       {/* Backdrop */}
       {drawerOpen && (
         <div
-          className="md:hidden fixed inset-0 z-40 bg-zinc-950/80 backdrop-blur-sm"
+          className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
           onClick={() => setDrawerOpen(false)}
         />
       )}
@@ -91,19 +91,19 @@ export function Header() {
       {/* Drawer panel */}
       <aside
         className={cn(
-          "md:hidden fixed top-0 left-0 bottom-0 z-50 w-72 bg-zinc-950 border-r border-zinc-800 flex flex-col transition-transform duration-300 ease-in-out",
+          "md:hidden fixed top-0 left-0 bottom-0 z-50 w-72 bg-background border-r border-border flex flex-col transition-transform duration-300 ease-in-out",
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Drawer header */}
-        <div className="flex items-center justify-between px-5 h-14 border-b border-zinc-800 shrink-0">
+        <div className="flex items-center justify-between px-5 h-14 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
             <Rocket size={16} className="text-emerald-400" />
-            <span className="font-bold text-sm text-white">Career Autopilot</span>
+            <span className="font-bold text-sm text-foreground">Career Autopilot</span>
           </div>
           <button
             onClick={() => setDrawerOpen(false)}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent transition-colors"
             aria-label="Close menu"
           >
             <X size={18} />
@@ -142,8 +142,8 @@ export function Header() {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-zinc-800 text-emerald-400"
-                    : "text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100"
+                    ? "bg-accent text-emerald-500 dark:text-emerald-400"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
               >
                 <Icon

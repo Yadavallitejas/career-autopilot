@@ -18,14 +18,14 @@ export default async function OnboardingPage() {
   if (user.onboardingCompleted) redirect("/dashboard");
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Top bar */}
-      <header className="shrink-0 h-16 flex items-center px-6 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
+      <header className="shrink-0 h-16 flex items-center px-6 border-b border-border bg-background/80 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
           <span className="text-emerald-400">
             <Rocket size={20} strokeWidth={2.5} />
           </span>
-          <span className="font-bold text-white text-sm tracking-tight">
+          <span className="font-bold text-foreground text-sm tracking-tight">
             Career Autopilot
           </span>
         </div>
@@ -38,7 +38,7 @@ export default async function OnboardingPage() {
 
       {/* Bottom note */}
       <footer className="shrink-0 py-4 text-center">
-        <p className="text-xs text-zinc-700">
+        <p className="text-xs text-muted-foreground/60">
           Secure · Private · No spam · Cancel anytime
         </p>
       </footer>

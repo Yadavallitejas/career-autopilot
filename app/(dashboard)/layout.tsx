@@ -29,7 +29,7 @@ export default async function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {/* Fixed sidebar — hidden on mobile (<md), shown on md+ */}
       <Sidebar user={dashboardUser} />
 
@@ -40,7 +40,7 @@ export default async function DashboardLayout({
           pb-16 md:pb-0 — on mobile the bottom tab bar is 64px tall (h-16).
           This padding prevents page content from being hidden behind it.
         */}
-        <main className="flex-1 overflow-y-auto bg-zinc-950 pb-16 md:pb-0">
+        <main className="flex-1 overflow-y-auto bg-background pb-16 md:pb-0">
           {children}
         </main>
       </div>

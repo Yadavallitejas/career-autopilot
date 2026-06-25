@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Rocket, AlertTriangle, X } from "lucide-react";
@@ -31,12 +31,12 @@ function UpgradeModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Panel */}
-      <div className="relative z-10 w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl">
+      <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl p-6 shadow-2xl">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
@@ -49,12 +49,12 @@ function UpgradeModal({
           <AlertTriangle size={22} className="text-amber-400" />
         </div>
 
-        <h2 className="text-lg font-bold text-white mb-2">
+        <h2 className="text-lg font-bold text-foreground mb-2">
           Free tier limit reached
         </h2>
-        <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+        <p className="text-sm text-muted-foreground leading-relaxed mb-6">
           You&apos;ve used{" "}
-          <span className="text-white font-semibold">{used}/{FREE_TIER_LIMIT}</span>{" "}
+          <span className="text-foreground font-semibold">{used}/{FREE_TIER_LIMIT}</span>{" "}
           achievements this month. Upgrade to Pro for unlimited achievements,
           posts, and resume updates.
         </p>
@@ -71,7 +71,7 @@ function UpgradeModal({
           <Button
             variant="ghost"
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300 text-sm"
+            className="text-muted-foreground hover:text-foreground text-sm"
           >
             Maybe later
           </Button>
@@ -122,6 +122,11 @@ interface AchievementFormProps {
 export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    // Clear override cookie on component mount so that subsequent visits check again
+    document.cookie = "resume_gate_override=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+  }, []);
 
   // Form state
   const [text, setText] = useState("");
@@ -210,11 +215,12 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             Processing
           </div>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-2xl font-bold text-foreground">
             Achievement logged! 🚀
           </h1>
-          <p className="text-sm text-zinc-400 mt-2">
-            Our AI is working on your LinkedIn post, resume, and portfolio.
+          <p className="text-sm text-muted-foreground mt-2">
+            Just type naturally. Our AI will pull out structural metrics, map it
+            to a category, and draft matching updates.
           </p>
         </div>
 
@@ -226,7 +232,7 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
         <div className="text-center mt-8">
           <Link
             href="/dashboard"
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             ← Back to Dashboard
           </Link>
@@ -252,95 +258,66 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
         {/* Back link */}
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-10"
         >
           <ArrowLeft size={14} />
-          Dashboard
+          Back to Dashboard
         </Link>
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white tracking-tight mb-3">
-            What did you achieve?
-          </h1>
-          <p className="text-zinc-400 text-lg">
-            Log it once. We handle everything else.
+        <div className="space-y-2 mb-6">
+          <h2 className="text-2xl font-bold text-foreground tracking-tight">
+            Log an achievement
+          </h2>
+          <p className="text-muted-foreground text-lg">
+            What did you accomplish today?
           </p>
         </div>
 
-        {/* Free tier usage indicator */}
-        {plan === "free" && (
-          <div className="flex items-center justify-between mb-4 px-1">
-            <span className="text-xs text-zinc-600">
-              This month:{" "}
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2 relative">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground/60">
+                Type at least {MIN_CHARS} characters
+              </span>
               <span
                 className={cn(
-                  "font-semibold",
-                  monthlyCount >= FREE_TIER_LIMIT
-                    ? "text-amber-400"
-                    : "text-zinc-400"
+                  "text-xs font-semibold",
+                  charCount > MAX_CHARS
+                    ? "text-red-400"
+                    : "text-muted-foreground"
                 )}
               >
-                {monthlyCount}/{FREE_TIER_LIMIT} achievements
+                {charCount} / {MAX_CHARS}
               </span>
-            </span>
-            {monthlyCount >= FREE_TIER_LIMIT && (
-              <button
-                onClick={() => setShowUpgrade(true)}
-                className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
-              >
-                Upgrade for unlimited →
-              </button>
-            )}
-          </div>
-        )}
+            </div>
 
-        {/* Error banner */}
-        {error && (
-          <div className="mb-4">
-            <ErrorBanner message={error} onDismiss={() => setError(null)} />
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Textarea */}
-          <div className="relative">
+            {/* Textarea */}
             <textarea
               ref={textareaRef}
               id="achievement-input"
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={6}
-              maxLength={MAX_CHARS + 50} // allow slightly over to show the counter turn red
+              maxLength={MAX_CHARS + 50}
               placeholder="e.g. Completed the AWS Solutions Architect certification after 3 weeks of study. Scored 892/1000. Focused on VPC networking, IAM, and distributed systems..."
               className={cn(
-                "w-full resize-none rounded-2xl bg-zinc-900 border px-5 py-4 text-sm text-zinc-100 placeholder:text-zinc-600",
+                "w-full resize-none rounded-2xl bg-card border px-5 py-4 text-sm text-foreground placeholder:text-muted-foreground/60",
                 "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all duration-200",
-                "leading-relaxed font-sans",
                 charCount > MAX_CHARS
-                  ? "border-red-500/50"
-                  : "border-zinc-800 hover:border-zinc-700 focus:border-emerald-500/50"
+                  ? "border-red-500/50 focus:border-red-500/50"
+                  : "border-border hover:border-zinc-500/50 focus:border-emerald-500/50"
               )}
               disabled={isSubmitting}
               autoFocus
             />
-
-            {/* Character counter */}
-            <div
-              className={cn(
-                "absolute bottom-3 right-4 text-xs tabular-nums transition-colors",
-                charCountColor
-              )}
-            >
-              {charCount} / {MAX_CHARS}
-            </div>
           </div>
 
           {/* Guidance card */}
-          <div className="bg-zinc-900/40 border border-zinc-800/60 rounded-xl px-4 py-3">
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              <span className="text-zinc-400">💡 Include:</span> what it was,
+          <div className="bg-muted/40 border border-border rounded-xl px-4 py-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              <span className="text-foreground">💡 Include:</span> what it was,
               how long it took, what you learned, any numbers or metrics (e.g.
               score, hours, team size, impact)
             </p>
@@ -354,12 +331,12 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
               "w-full h-12 text-base font-bold rounded-xl transition-all duration-200",
               canSubmit
                 ? "bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-lg shadow-emerald-500/20"
-                : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                : "bg-muted text-muted-foreground cursor-not-allowed"
             )}
           >
             {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full border-2 border-zinc-500 border-t-transparent animate-spin" />
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-muted-foreground border-t-transparent animate-spin" />
                 Submitting...
               </span>
             ) : (
@@ -372,7 +349,7 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
         </form>
 
         {/* Footer hint */}
-        <p className="text-xs text-zinc-600 text-center mt-6">
+        <p className="text-xs text-muted-foreground/60 text-center mt-6">
           Your achievement will be classified, your LinkedIn post drafted, and
           resume updated automatically.
         </p>

@@ -76,13 +76,13 @@ export function Sidebar({ user }: SidebarProps) {
           Hidden on mobile (<md). The main content area has ml-60 on md+ to
           leave room for this fixed sidebar (see layout.tsx).
       ─────────────────────────────────────────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-60 shrink-0 h-screen border-r border-zinc-800/70 bg-zinc-950/90 backdrop-blur-sm">
+      <aside className="hidden md:flex flex-col w-60 shrink-0 h-screen border-r border-border bg-background/90 backdrop-blur-sm">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 h-16 border-b border-zinc-800/70 shrink-0">
+        <div className="flex items-center gap-2.5 px-5 h-16 border-b border-border shrink-0">
           <span className="text-emerald-400">
             <Rocket size={18} strokeWidth={2.5} />
           </span>
-          <span className="font-bold text-white text-sm tracking-tight">
+          <span className="font-bold text-foreground text-sm tracking-tight">
             Career Autopilot
           </span>
         </div>
@@ -120,8 +120,8 @@ export function Sidebar({ user }: SidebarProps) {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group",
                   isActive
-                    ? "bg-zinc-800 text-emerald-400"
-                    : "text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100"
+                    ? "bg-accent text-emerald-500 dark:text-emerald-400"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
               >
                 <Icon
@@ -131,7 +131,7 @@ export function Sidebar({ user }: SidebarProps) {
                     "shrink-0 transition-colors",
                     isActive
                       ? "text-emerald-400"
-                      : "text-zinc-500 group-hover:text-zinc-300"
+                      : "text-muted-foreground group-hover:text-foreground"
                   )}
                 />
                 <span className="flex-1">{item.label}</span>
@@ -146,10 +146,10 @@ export function Sidebar({ user }: SidebarProps) {
         </nav>
 
         {user.plan === 'free' && (
-          <div className="p-4 border-t border-zinc-800 shrink-0">
-            <div className="rounded-lg bg-emerald-950/30 border border-emerald-900 p-3 space-y-2">
-              <div className="text-xs font-medium text-emerald-400">Upgrade to Pro</div>
-              <div className="text-xs text-zinc-400">Unlimited achievements, LinkedIn publish, custom resume</div>
+          <div className="p-4 border-t border-border shrink-0">
+            <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-2">
+              <div className="text-xs font-medium text-emerald-500 dark:text-emerald-400">Upgrade to Pro</div>
+              <div className="text-xs text-muted-foreground">Unlimited achievements, LinkedIn publish, custom resume</div>
               <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-500 text-xs text-zinc-100 font-medium" asChild>
                 <Link href="/settings?tab=billing">Upgrade — ₹499/mo</Link>
               </Button>
@@ -158,8 +158,8 @@ export function Sidebar({ user }: SidebarProps) {
         )}
 
         {/* Bottom: user info + plan badge */}
-        <div className="shrink-0 border-t border-zinc-800/70 p-3">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/50 transition-colors">
+        <div className="shrink-0 border-t border-border p-3">
+          <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-accent/50 transition-colors">
             <UserButton
               appearance={{
                 elements: {
@@ -168,17 +168,17 @@ export function Sidebar({ user }: SidebarProps) {
               }}
             />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-zinc-200 truncate">
+              <p className="text-xs font-semibold text-foreground truncate">
                 {displayName}
               </p>
-              <p className="text-[11px] text-zinc-500 truncate">{user.email}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{user.email}</p>
             </div>
             <span
               className={cn(
                 "shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border",
                 isPro
                   ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                  : "bg-zinc-800 text-zinc-400 border-zinc-700"
+                  : "bg-muted text-muted-foreground border-border"
               )}
             >
               {isPro ? "Pro" : "Free"}
@@ -193,7 +193,7 @@ export function Sidebar({ user }: SidebarProps) {
           circle for visual emphasis.
       ─────────────────────────────────────────────────────────────────────── */}
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800/70 flex items-center justify-around px-1 py-1 safe-area-bottom"
+        className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-background/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1 py-1 safe-area-bottom"
         style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}
       >
         {navItems.slice(0, 5).map((item) => {
@@ -209,10 +209,10 @@ export function Sidebar({ user }: SidebarProps) {
               className={cn(
                 "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-150 min-w-[56px]",
                 item.accent
-                  ? "text-emerald-400"
+                  ? "text-emerald-500 dark:text-emerald-400"
                   : isActive
-                  ? "text-emerald-400"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-emerald-500 dark:text-emerald-400"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               {item.accent ? (
