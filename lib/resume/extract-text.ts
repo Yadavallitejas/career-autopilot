@@ -1,37 +1,41 @@
-/**
- * lib/resume/extract-text.ts
- *
- * PDF and DOCX text extraction for Next.js serverless (Node.js runtime).
- * Uses pdfjs-dist in legacy mode (no worker) for PDF, mammoth for DOCX.
- */
+// CRITICAL: this import MUST come before importing PDFParse — it sets up
+// the canvas factory and polyfills (DOMMatrix, ImageData) that pdfjs-dist
+// needs and which don't exist in a bare Node.js serverless runtime.
+import 'pdf-parse/worker'
+import { PDFParse } from 'pdf-parse'
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  // Use pdfjs-dist in legacy mode for Node.js serverless
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs') as any
-
-  // Disable worker in serverless environment (no DOM, no Worker API)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
-
-  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
-  const pdfDocument = await loadingTask.promise
-
-  const textPages: string[] = []
-  for (let i = 1; i <= pdfDocument.numPages; i++) {
-    const page = await pdfDocument.getPage(i)
-    const textContent = await page.getTextContent()
-    const pageText = (textContent.items as { str?: string }[])
-      .map((item) => item.str ?? '')
-      .join(' ')
-    textPages.push(pageText)
+  if (buffer.length > 30 * 1024 * 1024) {
+    throw new Error('PDF is too large (max 30MB). Please upload a smaller file.')
   }
 
-  return textPages.join('\n\n')
+  try {
+    const parser = new PDFParse({ data: buffer })
+    const result = await parser.getText()
+
+    if (!result.text || result.text.trim().length < 50) {
+      throw new Error('The PDF appears to be empty, scanned, or image-only. Please try a text-based PDF, or paste your resume text directly.')
+    }
+
+    return result.text
+
+  } catch (error) {
+    console.error('[PDF Extraction] Failed:', error)
+    const message = error instanceof Error ? error.message : 'Unknown extraction error'
+    throw new Error(message)
+  }
 }
 
 export async function extractTextFromDocx(buffer: Buffer): Promise<string> {
-  // mammoth works fine with Buffer in serverless
-  const mammoth = await import('mammoth')
-  const result = await mammoth.extractRawText({ buffer })
-  return result.value
+  try {
+    const mammoth = await import('mammoth')
+    const result = await mammoth.extractRawText({ buffer })
+    if (!result.value || result.value.trim().length < 50) {
+      throw new Error('The document appears to be empty.')
+    }
+    return result.value
+  } catch (error) {
+    console.error('[DOCX Extraction] Failed:', error)
+    throw new Error('Could not read the DOCX file. Please try a PDF, or paste your resume text directly.')
+  }
 }
