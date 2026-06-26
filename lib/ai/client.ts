@@ -45,6 +45,10 @@ export interface CallAIOptions {
   system: string
   prompt: string
   maxTokens?: number
+  /** When true, instructs the Grok (and Anthropic where possible) API to return
+   *  valid JSON only — eliminates "model wrapped JSON in prose" failures.
+   *  Set to false (default) for plain-prose responses like the career coach. */
+  jsonMode?: boolean
 }
 
 /**
@@ -58,6 +62,7 @@ export async function callAI({
   system,
   prompt,
   maxTokens = 1000,
+  jsonMode = false,
 }: CallAIOptions): Promise<string> {
   // Guard: if no API keys, fail fast
   if (!process.env.ANTHROPIC_API_KEY && !process.env.XAI_API_KEY) {
@@ -96,8 +101,9 @@ export async function callAI({
   if (process.env.XAI_API_KEY) {
     try {
       const response = await grok.chat.completions.create({
-        model: 'grok-3-mini',
+        model: 'grok-4.3',
         max_tokens: maxTokens,
+        ...(jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt },

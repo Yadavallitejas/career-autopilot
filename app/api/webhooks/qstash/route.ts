@@ -163,6 +163,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let classifyResult: Awaited<ReturnType<typeof classifyAchievement>>;
 
+  console.log('[Pipeline] Resume context length:', existingResumeText?.length ?? 0)
+  console.log('[Pipeline] Resume context preview:', existingResumeText?.slice(0, 200))
+
   try {
     classifyResult = await classifyAchievement({
       rawInput: achievement.rawInput,

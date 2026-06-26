@@ -143,6 +143,7 @@ Rules for mediaPrompt: specific description of an image or screenshot that would
       system: LINKEDIN_SYSTEM_PROMPT,
       prompt,
       maxTokens: 800,
+      jsonMode: true,
     });
   } catch (err) {
     console.error("[draftLinkedInPost] AI call failed:", err);
@@ -197,6 +198,7 @@ Rules:
       system: X_SYSTEM_PROMPT,
       prompt,
       maxTokens: 600,
+      jsonMode: true,
     });
   } catch (err) {
     console.error("[draftXPost] AI call failed:", err);

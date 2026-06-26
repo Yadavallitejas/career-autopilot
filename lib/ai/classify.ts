@@ -206,11 +206,14 @@ Rules:
       system: CLASSIFY_SYSTEM_PROMPT,
       prompt,
       maxTokens: 600,
+      jsonMode: true,
     });
   } catch (aiErr) {
     console.error("[classifyAchievement] AI call failed:", aiErr);
     return { ...SAFE_DEFAULTS };
   }
+
+  console.log('[Classify] Raw AI response (first 500 chars):', rawText.slice(0, 500));
 
   // ---------------------------------------------------------------------------
   // 2. Parse JSON
@@ -219,11 +222,9 @@ Rules:
   let parsed: unknown;
   try {
     parsed = JSON.parse(stripMarkdownFences(rawText));
-  } catch {
-    console.error(
-      "[classifyAchievement] JSON.parse failed. Raw response:\n",
-      rawText
-    );
+  } catch (parseError) {
+    console.error('[Classify] JSON parse failed. Raw response was:', rawText);
+    console.error('[Classify] Parse error:', parseError);
     return { ...SAFE_DEFAULTS };
   }
 
@@ -233,12 +234,8 @@ Rules:
 
   const validated = ClassificationSchema.safeParse(parsed);
   if (!validated.success) {
-    console.error(
-      "[classifyAchievement] Schema validation failed:",
-      validated.error.flatten(),
-      "\nParsed object:",
-      parsed
-    );
+    console.error('[Classify] Schema validation failed:', validated.error.issues);
+    console.error('[Classify] Parsed object was:', parsed);
     // If we at least got a string reasoning from the AI, surface it
     const rawReasoning =
       typeof (parsed as Record<string, unknown>)?.reasoning === "string"
