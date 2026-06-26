@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  outputFileTracing: false,
   eslint: {
     // Don't block production builds on lint errors. Many Vercel deploys
     // fail on minor warnings (unescaped quotes, unused vars). Run `npm run lint`
