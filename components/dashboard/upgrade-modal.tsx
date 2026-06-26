@@ -169,27 +169,27 @@ export function UpgradeModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 dark:bg-zinc-950/85 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="relative px-6 pt-6 pb-5 border-b border-zinc-800 bg-gradient-to-r from-emerald-950/40 to-zinc-900">
+        <div className="relative px-6 pt-6 pb-5 border-b border-border bg-gradient-to-r from-emerald-500/10 dark:from-emerald-950/40 to-muted/20 dark:to-card">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                <Crown size={20} className="text-emerald-400" />
+                <Crown size={20} className="text-emerald-500 dark:text-emerald-400" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">
+                <h2 className="text-lg font-bold text-foreground">
                   Upgrade to Pro
                 </h2>
-                <p className="text-xs text-zinc-400 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Unlock unlimited achievements, publishing, and more
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             >
               <X size={16} />
             </button>
@@ -198,21 +198,21 @@ export function UpgradeModal({
 
         <div className="p-6 space-y-6">
           {/* Billing toggle */}
-          <div className="flex items-center justify-center gap-1 bg-zinc-800/50 rounded-xl p-1 self-start mx-auto w-fit">
+          <div className="flex items-center justify-center gap-1 bg-muted rounded-xl p-1 self-start mx-auto w-fit border border-border">
             {(["monthly", "annual"] as BillingCycle[]).map((cycle) => (
               <button
                 key={cycle}
                 onClick={() => setBilling(cycle)}
                 className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                  "px-4 py-1.5 rounded-lg text-sm font-medium transition-all border border-transparent",
                   billing === cycle
-                    ? "bg-zinc-700 text-white shadow"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-card text-foreground shadow border-border"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 {cycle === "monthly" ? "Monthly" : "Annual"}
                 {cycle === "annual" && (
-                  <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-semibold">
+                  <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold">
                     -33%
                   </span>
                 )}
@@ -223,14 +223,14 @@ export function UpgradeModal({
           {/* Plan comparison grid */}
           <div className="grid sm:grid-cols-2 gap-4">
             {/* Free */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
+            <div className="rounded-xl border border-border bg-muted/40 p-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm font-bold text-zinc-300">Free</p>
-                  <p className="text-2xl font-bold text-white mt-1">₹0</p>
+                  <p className="text-sm font-bold text-muted-foreground">Free</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">₹0</p>
                 </div>
                 {currentPlan === "free" && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
                     Current
                   </span>
                 )}
@@ -239,9 +239,9 @@ export function UpgradeModal({
                 {FREE_FEATURES.map((f) => (
                   <li
                     key={f}
-                    className="flex items-start gap-2 text-xs text-zinc-500"
+                    className="flex items-start gap-2 text-xs text-muted-foreground/80"
                   >
-                    <Check size={12} className="mt-0.5 shrink-0 text-zinc-600" />
+                    <Check size={12} className="mt-0.5 shrink-0 text-muted-foreground/50" />
                     {f}
                   </li>
                 ))}
@@ -249,32 +249,32 @@ export function UpgradeModal({
             </div>
 
             {/* Pro */}
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-5 relative overflow-hidden">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20 p-5 relative overflow-hidden">
               {/* Sparkle glow */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
               <div className="flex items-center justify-between mb-4 relative">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm font-bold text-white">Pro</p>
-                    <Sparkles size={12} className="text-emerald-400" />
+                    <p className="text-sm font-bold text-foreground">Pro</p>
+                    <Sparkles size={12} className="text-emerald-500 dark:text-emerald-400" />
                   </div>
-                  <p className="text-2xl font-bold text-white">
+                  <p className="text-2xl font-bold text-foreground">
                     {displayPrice}
                   </p>
                   {displayMonthly && (
-                    <p className="text-xs text-zinc-400 mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {displayMonthly}
                     </p>
                   )}
                   {savings && (
-                    <p className="text-xs text-emerald-400 mt-0.5 font-semibold">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5 font-semibold">
                       {savings}
                     </p>
                   )}
                 </div>
                 {isAlreadyPro && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                     Current
                   </span>
                 )}
@@ -284,11 +284,11 @@ export function UpgradeModal({
                 {PRO_FEATURES.map((f) => (
                   <li
                     key={f}
-                    className="flex items-start gap-2 text-xs text-zinc-300"
+                    className="flex items-start gap-2 text-xs text-foreground"
                   >
                     <Check
                       size={12}
-                      className="mt-0.5 shrink-0 text-emerald-400"
+                      className="mt-0.5 shrink-0 text-emerald-500 dark:text-emerald-400"
                     />
                     {f}
                   </li>
@@ -299,7 +299,7 @@ export function UpgradeModal({
 
           {/* Error */}
           {error && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-red-500/20 bg-red-500/5 text-red-400 text-xs">
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 dark:text-red-400 text-xs">
               <Zap size={13} className="shrink-0" />
               {error}
             </div>
@@ -326,12 +326,12 @@ export function UpgradeModal({
                   </>
                 )}
               </Button>
-              <p className="text-center text-xs text-zinc-600">
+              <p className="text-center text-xs text-muted-foreground">
                 Secure payment via Razorpay · Cancel anytime · Instant access
               </p>
             </div>
           ) : (
-            <div className="flex items-center justify-center gap-2 py-3 text-sm text-emerald-400">
+            <div className="flex items-center justify-center gap-2 py-3 text-sm text-emerald-500 dark:text-emerald-400">
               <CheckCircle size={16} />
               You&apos;re already on the Pro plan
             </div>

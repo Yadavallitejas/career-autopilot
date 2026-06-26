@@ -26,6 +26,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useClerk } from "@clerk/nextjs";
 import type { ConnectedAccount, Subscription } from "@/db/schema";
@@ -80,10 +81,10 @@ function FlashBanner({
       className={cn(
         "fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-xl border animate-in slide-in-from-bottom-4 fade-in duration-200",
         msg.variant === "success" &&
-          "bg-emerald-950 border-emerald-500/30 text-emerald-300",
-        msg.variant === "error" && "bg-red-950 border-red-500/30 text-red-300",
+          "bg-accent border-primary/20 text-accent-foreground",
+        msg.variant === "error" && "bg-destructive/10 border-destructive/20 text-destructive",
         msg.variant === "default" &&
-          "bg-zinc-900 border-zinc-700 text-zinc-200"
+          "bg-card border-border text-foreground"
       )}
     >
       {msg.text}
@@ -107,31 +108,31 @@ function Section({
   danger?: boolean;
 }) {
   return (
-    <div
+    <Card
       className={cn(
-        "rounded-2xl border p-6 space-y-5",
+        "p-6 space-y-5",
         danger
-          ? "border-red-500/30 bg-red-950/10"
-          : "border-zinc-800 bg-zinc-900/30"
+          ? "border-destructive/30 bg-destructive/5"
+          : ""
       )}
     >
       <div>
         <h2
           className={cn(
             "text-base font-semibold",
-            danger ? "text-red-400" : "text-white"
+            danger ? "text-destructive" : "text-foreground"
           )}
         >
           {title}
         </h2>
         {description && (
-          <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
             {description}
           </p>
         )}
       </div>
       {children}
-    </div>
+    </Card>
   );
 }
 
@@ -201,22 +202,22 @@ function ConnectedAccountsSection({
       description="Link external accounts for publishing and portfolio deployment."
     >
       {/* LinkedIn */}
-      <div className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
+      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/40">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#0077b5]/10 border border-[#0077b5]/20 flex items-center justify-center shrink-0">
             <Linkedin size={18} className="text-[#0077b5]" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">LinkedIn</p>
+            <p className="text-sm font-semibold text-foreground">LinkedIn</p>
             {linkedinAccount ? (
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-muted-foreground">
                   {linkedinAccount.platformUsername ?? "Connected"}
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-zinc-600">Not connected</p>
+              <p className="text-xs text-muted-foreground/60">Not connected</p>
             )}
           </div>
         </div>
@@ -227,7 +228,7 @@ function ConnectedAccountsSection({
             variant="ghost"
             onClick={handleDisconnect}
             disabled={isDisconnecting}
-            className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10 text-xs gap-1.5"
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-xs gap-1.5"
           >
             {isDisconnecting ? (
               <Loader2 size={12} className="animate-spin" />
@@ -248,20 +249,20 @@ function ConnectedAccountsSection({
       </div>
 
       {/* GitHub */}
-      <div className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
+      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/40">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
-            <Github size={18} className="text-zinc-300" />
+          <div className="w-9 h-9 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
+            <Github size={18} className="text-foreground" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">GitHub</p>
+            <p className="text-sm font-semibold text-foreground">GitHub</p>
             {githubConnected ? (
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <p className="text-xs text-zinc-400">Connected</p>
+                <p className="text-xs text-muted-foreground">Connected</p>
               </div>
             ) : (
-              <p className="text-xs text-zinc-600">Not connected</p>
+              <p className="text-xs text-muted-foreground/60">Not connected</p>
             )}
           </div>
         </div>
@@ -272,7 +273,7 @@ function ConnectedAccountsSection({
             variant="ghost"
             onClick={handleDisconnectGithub}
             disabled={isDisconnectingGithub}
-            className="text-zinc-500 hover:text-red-400 hover:bg-red-500/10 text-xs gap-1.5"
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 text-xs gap-1.5"
           >
             {isDisconnectingGithub ? (
               <Loader2 size={12} className="animate-spin" />
@@ -285,7 +286,8 @@ function ConnectedAccountsSection({
           <Button
             size="sm"
             asChild
-            className="bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-bold"
+            variant="outline"
+            className="text-xs font-bold"
           >
             <a href="/api/portfolio/github-auth">Connect GitHub</a>
           </Button>
@@ -363,86 +365,95 @@ function ResumePreferencesSection({
     >
       {/* Page length */}
       <div>
-        <p className="text-xs font-semibold text-zinc-400 mb-2">Resume length</p>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">Resume length</p>
         <div className="flex flex-wrap gap-2">
           {([
             { v: 1 as const, label: "1 page", sub: "< 5 yrs experience" },
             { v: 2 as const, label: "2 pages", sub: "5+ yrs experience" },
             { v: null, label: "No limit", sub: "Let AI decide" },
-          ] as const).map(({ v, label, sub }) => (
-            <button
-              key={String(v)}
-              onClick={() => setMaxPages(v)}
-              className={cn(
-                "flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all",
-                maxPages === v
-                  ? "border-emerald-500/60 bg-emerald-950/20 text-emerald-300"
-                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700"
-              )}
-            >
-              <span className="text-sm font-semibold">{label}</span>
-              <span className="text-xs mt-0.5 opacity-70">{sub}</span>
-            </button>
-          ))}
+          ] as const).map(({ v, label, sub }) => {
+            const isSelected = maxPages === v;
+            return (
+              <button
+                key={String(v)}
+                onClick={() => setMaxPages(v)}
+                className={cn(
+                  "flex flex-col items-start p-3 rounded-lg border transition-colors text-left",
+                  isSelected
+                    ? "border-primary bg-accent text-accent-foreground"
+                    : "border-border bg-card text-foreground hover:bg-muted"
+                )}
+              >
+                <span className="text-sm font-semibold">{label}</span>
+                <span className="text-xs mt-0.5 opacity-70">{sub}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Writing style */}
       <div>
-        <p className="text-xs font-semibold text-zinc-400 mb-2">Writing style</p>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">Writing style</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {FOCUS_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setFocus(focus === opt.value ? null : opt.value)}
-              className={cn(
-                "flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all",
-                focus === opt.value
-                  ? "border-emerald-500/60 bg-emerald-950/20 text-emerald-300"
-                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700"
-              )}
-            >
-              <span className="text-sm font-semibold">{opt.label}</span>
-              <span className="text-xs mt-0.5 opacity-70">{opt.desc}</span>
-            </button>
-          ))}
+          {FOCUS_OPTIONS.map((opt) => {
+            const isSelected = focus === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setFocus(focus === opt.value ? null : opt.value)}
+                className={cn(
+                  "flex flex-col items-start p-3 rounded-lg border transition-colors text-left",
+                  isSelected
+                    ? "border-primary bg-accent text-accent-foreground"
+                    : "border-border bg-card text-foreground hover:bg-muted"
+                )}
+              >
+                <span className="text-sm font-semibold">{opt.label}</span>
+                <span className="text-xs mt-0.5 opacity-70">{opt.desc}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Exclude sections */}
       <div>
-        <p className="text-xs font-semibold text-zinc-400 mb-2">Skip these sections</p>
-        <p className="text-xs text-zinc-600 mb-2.5">AI will not place bullets in these sections.</p>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">Skip these sections</p>
+        <p className="text-xs text-muted-foreground/60 mb-2.5">AI will not place bullets in these sections.</p>
         <div className="flex flex-wrap gap-2">
-          {EXCLUDE_SECTION_OPTIONS.map((s) => (
-            <button
-              key={s}
-              onClick={() => toggleExclude(s)}
-              className={cn(
-                "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all",
-                excludeSections.includes(s)
-                  ? "border-red-500/40 bg-red-950/20 text-red-400"
-                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700"
-              )}
-            >
-              {excludeSections.includes(s) ? "✕ " : ""}{s}
-            </button>
-          ))}
+          {EXCLUDE_SECTION_OPTIONS.map((s) => {
+            const isSelected = excludeSections.includes(s);
+            return (
+              <button
+                key={s}
+                onClick={() => toggleExclude(s)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all",
+                  isSelected
+                    ? "border-destructive bg-destructive/10 text-destructive"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {isSelected ? "✕ " : ""}{s}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Custom instruction */}
       <div>
-        <p className="text-xs font-semibold text-zinc-400 mb-2">Custom instructions</p>
+        <p className="text-xs font-semibold text-muted-foreground mb-2">Custom instructions</p>
         <textarea
           rows={3}
           value={customInstruction}
           onChange={(e) => setCustomInstruction(e.target.value)}
           placeholder="e.g. Always include my GitHub link. Never add GPA. Focus on leadership when relevant."
           maxLength={500}
-          className="w-full bg-zinc-900 border border-zinc-700 hover:border-zinc-600 focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 resize-none focus:outline-none transition-colors"
+          className="w-full bg-card border border-border hover:border-muted-foreground/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 resize-none focus:outline-none transition-colors"
         />
-        <p className="text-xs text-zinc-600 mt-1">
+        <p className="text-xs text-muted-foreground/60 mt-1">
           {customInstruction.length}/500 — The AI follows these on every resume update
         </p>
       </div>
@@ -485,31 +496,32 @@ function CancelDialog({
   isLoading: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <Card className="border border-border rounded-2xl w-full max-w-sm p-6 shadow-2xl">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-            <AlertTriangle size={18} className="text-red-400" />
+          <div className="w-10 h-10 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center justify-center">
+            <AlertTriangle size={18} className="text-destructive" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white">Cancel subscription?</h3>
-            <p className="text-xs text-zinc-500">You'll keep Pro until the end of your billing period.</p>
+            <h3 className="text-sm font-bold text-foreground">Cancel subscription?</h3>
+            <p className="text-xs text-muted-foreground">You'll keep Pro until the end of your billing period.</p>
           </div>
         </div>
         <div className="flex gap-3 mt-5">
-          <Button variant="ghost" size="sm" onClick={onCancel} disabled={isLoading} className="flex-1 text-zinc-400">
+          <Button variant="ghost" size="sm" onClick={onCancel} disabled={isLoading} className="flex-1 text-muted-foreground hover:text-foreground">
             Keep Pro
           </Button>
           <Button
             size="sm"
             onClick={onConfirm}
             disabled={isLoading}
-            className="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-semibold"
+            variant="destructive"
+            className="flex-1 font-semibold"
           >
             {isLoading ? <Loader2 size={13} className="animate-spin" /> : "Yes, cancel"}
           </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -558,30 +570,30 @@ function PlanBillingSection({
         description="Manage your subscription and billing details."
       >
         {/* Current plan badge */}
-        <div className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
+        <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/40">
           <div className="flex items-center gap-3">
             <div className={cn(
               "w-9 h-9 rounded-lg border flex items-center justify-center shrink-0",
               isPro
-                ? "bg-emerald-500/10 border-emerald-500/20"
-                : "bg-zinc-800 border-zinc-700"
+                ? "bg-primary/10 border-primary/20"
+                : "bg-muted border-border"
             )}>
               {isPro ? (
-                <Crown size={18} className="text-emerald-400" />
+                <Crown size={18} className="text-primary" />
               ) : (
-                <Zap size={18} className="text-zinc-500" />
+                <Zap size={18} className="text-muted-foreground" />
               )}
             </div>
             <div>
-              <p className="text-sm font-semibold text-white capitalize">{plan} Plan</p>
+              <p className="text-sm font-semibold text-foreground capitalize">{plan} Plan</p>
               {isPro && subscription?.currentPeriodEnd ? (
-                <p className="text-xs text-zinc-500 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {subscription.status === "cancelled"
                     ? `Access until ${new Date(subscription.currentPeriodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
                     : `Renews ${new Date(subscription.currentPeriodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`}
                 </p>
               ) : (
-                <p className="text-xs text-zinc-600 mt-0.5">3 achievements / month</p>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">3 achievements / month</p>
               )}
             </div>
           </div>
@@ -592,7 +604,7 @@ function PlanBillingSection({
                 size="sm"
                 variant="ghost"
                 onClick={() => setShowCancel(true)}
-                className="text-xs text-zinc-500 hover:text-red-400 hover:bg-red-500/10"
+                className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               >
                 Cancel
               </Button>
@@ -605,7 +617,7 @@ function PlanBillingSection({
                 // Dispatch a custom event that the layout can listen to
                 window.dispatchEvent(new CustomEvent("open-upgrade-modal"));
               }}
-              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/95 transition-colors"
             >
               Upgrade to Pro
               <ChevronRight size={12} />
@@ -615,8 +627,8 @@ function PlanBillingSection({
 
         {/* Free plan feature limits */}
         {!isPro && (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-4 space-y-3">
-            <p className="text-xs font-semibold text-emerald-400 flex items-center gap-2">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+            <p className="text-xs font-semibold text-primary flex items-center gap-2">
               <Crown size={13} />
               Unlock with Pro — ₹499/month
             </p>
@@ -628,8 +640,8 @@ function PlanBillingSection({
                 "Unlimited resume versions",
                 "Unlimited AI career coach",
               ].map((f) => (
-                <li key={f} className="flex items-center gap-2 text-xs text-zinc-400">
-                  <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+                <li key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 size={11} className="text-primary shrink-0" />
                   {f}
                 </li>
               ))}
@@ -640,21 +652,21 @@ function PlanBillingSection({
         {/* Billing cycle detail for Pro */}
         {isPro && subscription && (
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-              <p className="text-xs text-zinc-600 mb-1 flex items-center gap-1.5">
+            <div className="rounded-xl border border-border bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground/60 mb-1 flex items-center gap-1.5">
                 <CreditCard size={11} /> Billing cycle
               </p>
-              <p className="text-sm font-semibold text-white capitalize">
+              <p className="text-sm font-semibold text-foreground capitalize">
                 {subscription.billingCycle}
               </p>
             </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-              <p className="text-xs text-zinc-600 mb-1 flex items-center gap-1.5">
+            <div className="rounded-xl border border-border bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground/60 mb-1 flex items-center gap-1.5">
                 <Calendar size={11} /> Status
               </p>
               <p className={cn(
                 "text-sm font-semibold capitalize",
-                subscription.status === "active" ? "text-emerald-400" : "text-zinc-400"
+                subscription.status === "active" ? "text-primary" : "text-muted-foreground"
               )}>
                 {subscription.status}
               </p>
@@ -742,8 +754,8 @@ function PreferencesSection({
     <Section title="Preferences" description="Personalise your Career Autopilot experience.">
       {/* Theme */}
       <div>
-        <p className="text-xs font-semibold text-zinc-400 mb-2">Theme</p>
-        <div className="inline-flex gap-1 bg-zinc-800/60 rounded-xl p-1">
+        <p className="text-xs font-semibold text-muted-foreground mb-2">Theme</p>
+        <div className="inline-flex gap-1 bg-muted rounded-xl p-1 border border-border">
           {THEME_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -751,8 +763,8 @@ function PreferencesSection({
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 theme === opt.value
-                  ? "bg-zinc-700 text-white shadow"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-background text-foreground shadow"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               {opt.icon}
@@ -763,18 +775,18 @@ function PreferencesSection({
       </div>
 
       {/* Email notifications */}
-      <div className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
+      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/40">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
             {emailNotif ? (
-              <Bell size={16} className="text-emerald-400" />
+              <Bell size={16} className="text-primary" />
             ) : (
-              <BellOff size={16} className="text-zinc-600" />
+              <BellOff size={16} className="text-muted-foreground/60" />
             )}
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Email notifications</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <p className="text-sm font-semibold text-foreground">Email notifications</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Weekly digest, achievement milestones, billing updates
             </p>
           </div>
@@ -787,14 +799,14 @@ function PreferencesSection({
           onClick={handleEmailNotifToggle}
           disabled={isSaving}
           className={cn(
-            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
-            emailNotif ? "bg-emerald-500" : "bg-zinc-700",
+            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            emailNotif ? "bg-primary" : "bg-border",
             isSaving && "opacity-60 cursor-not-allowed"
           )}
         >
           <span
             className={cn(
-              "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform",
+              "pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow transform transition-transform",
               emailNotif ? "translate-x-5" : "translate-x-0"
             )}
           />
@@ -802,18 +814,18 @@ function PreferencesSection({
       </div>
 
       {/* Automatically apply resume suggestions */}
-      <div className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
+      <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/40">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
             {autoApplyResume ? (
-              <FileText size={16} className="text-emerald-400" />
+              <FileText size={16} className="text-primary" />
             ) : (
-              <FileText size={16} className="text-zinc-600" />
+              <FileText size={16} className="text-muted-foreground/60" />
             )}
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Automatically apply resume suggestions</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <p className="text-sm font-semibold text-foreground">Automatically apply resume suggestions</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Instantly regenerate your resume PDF when career achievements are logged
             </p>
           </div>
@@ -826,14 +838,14 @@ function PreferencesSection({
           onClick={handleAutoApplyResumeToggle}
           disabled={isSaving}
           className={cn(
-            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
-            autoApplyResume ? "bg-emerald-500" : "bg-zinc-700",
+            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            autoApplyResume ? "bg-primary" : "bg-border",
             isSaving && "opacity-60 cursor-not-allowed"
           )}
         >
           <span
             className={cn(
-              "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg transform transition-transform",
+              "pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow transform transition-transform",
               autoApplyResume ? "translate-x-5" : "translate-x-0"
             )}
           />
@@ -860,31 +872,31 @@ function DeleteAccountDialog({
   const confirmed = typed === "DELETE";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-red-500/30 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <Card className="border border-destructive/30 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-5">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
-            <Trash2 size={18} className="text-red-400" />
+          <div className="w-10 h-10 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center justify-center shrink-0 mt-0.5">
+            <Trash2 size={18} className="text-destructive" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white">Delete account permanently?</h3>
-            <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+            <h3 className="text-sm font-bold text-foreground">Delete account permanently?</h3>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
               All achievements, posts, resumes, and account data will be
-              deleted immediately. This action <span className="text-red-400 font-semibold">cannot be undone</span>.
+              deleted immediately. This action <span className="text-destructive font-semibold">cannot be undone</span>.
             </p>
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-zinc-400">
-            Type <span className="text-red-400 font-mono">DELETE</span> to confirm
+          <label className="text-xs font-semibold text-muted-foreground">
+            Type <span className="text-destructive font-mono">DELETE</span> to confirm
           </label>
           <input
             type="text"
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             placeholder="DELETE"
-            className="w-full bg-zinc-800 border border-zinc-700 focus:border-red-500/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-red-500/20 font-mono"
+            className="w-full bg-muted border border-border focus:border-destructive/50 rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-destructive/20 font-mono"
           />
         </div>
 
@@ -894,7 +906,7 @@ function DeleteAccountDialog({
             size="sm"
             onClick={onCancel}
             disabled={isLoading}
-            className="flex-1 text-zinc-400"
+            className="flex-1 text-muted-foreground"
           >
             Cancel
           </Button>
@@ -905,8 +917,8 @@ function DeleteAccountDialog({
             className={cn(
               "flex-1 font-bold",
               confirmed
-                ? "bg-red-500 hover:bg-red-400 text-white"
-                : "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                : "bg-muted text-muted-foreground/50 cursor-not-allowed"
             )}
           >
             {isLoading ? (
@@ -917,7 +929,7 @@ function DeleteAccountDialog({
             Delete everything
           </Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -958,15 +970,15 @@ function DangerZoneSection({ onFlash }: { onFlash: (text: string, variant: Toast
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-white">Delete account</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <p className="text-sm font-semibold text-foreground">Delete account</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Permanently remove your account and all associated data.
             </p>
           </div>
           <Button
             size="sm"
             onClick={() => setShowDialog(true)}
-            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-semibold gap-2 shrink-0"
+            className="bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/20 font-semibold gap-2 shrink-0"
           >
             <Trash2 size={13} />
             Delete account

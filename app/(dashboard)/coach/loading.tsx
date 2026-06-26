@@ -4,7 +4,7 @@ export default function CoachLoading() {
   return (
     <div className="h-full flex flex-col pb-20 md:pb-0">
       {/* Header */}
-      <div className="px-4 sm:px-6 py-4 border-b border-zinc-800">
+      <div className="px-4 sm:px-6 py-4 border-b border-border">
         <Skeleton className="h-5 w-28 mb-1.5" />
         <Skeleton className="h-3.5 w-64" />
       </div>
@@ -43,7 +43,7 @@ export default function CoachLoading() {
       </div>
 
       {/* Input bar */}
-      <div className="px-4 sm:px-6 py-4 border-t border-zinc-800">
+      <div className="px-4 sm:px-6 py-4 border-t border-border">
         <div className="flex gap-3 items-end">
           <Skeleton className="flex-1 h-12 rounded-xl" />
           <Skeleton className="h-10 w-10 rounded-xl shrink-0" />

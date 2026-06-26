@@ -119,25 +119,25 @@ function StepCircle({ state }: { state: StepState }) {
   if (state === "done")
     return (
       <span className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center shrink-0">
-        <Check size={13} className="text-emerald-400" strokeWidth={2.5} />
+        <Check size={13} className="text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} />
       </span>
     );
   if (state === "loading")
     return (
       <span className="w-7 h-7 rounded-full bg-yellow-500/10 border border-yellow-500/40 flex items-center justify-center shrink-0 animate-pulse">
-        <Loader2 size={13} className="text-yellow-400 animate-spin" />
+        <Loader2 size={13} className="text-yellow-500 dark:text-yellow-400 animate-spin" />
       </span>
     );
   if (state === "failed")
     return (
       <span className="w-7 h-7 rounded-full bg-red-500/10 border border-red-500/40 flex items-center justify-center shrink-0">
-        <X size={13} className="text-red-400" strokeWidth={2.5} />
+        <X size={13} className="text-red-500 dark:text-red-400" strokeWidth={2.5} />
       </span>
     );
   // pending
   return (
-    <span className="w-7 h-7 rounded-full border border-zinc-700 flex items-center justify-center shrink-0">
-      <span className="w-2 h-2 rounded-full bg-zinc-700" />
+    <span className="w-7 h-7 rounded-full border border-border flex items-center justify-center shrink-0">
+      <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
     </span>
   );
 }
@@ -162,7 +162,7 @@ function StepRow({
           <div
             className={cn(
               "w-px flex-1 mt-1",
-              state === "done" ? "bg-emerald-500/30" : "bg-zinc-800"
+              state === "done" ? "bg-emerald-500/30" : "bg-muted"
             )}
           />
         )}
@@ -174,18 +174,18 @@ function StepRow({
           className={cn(
             "text-sm font-medium leading-none mt-1",
             state === "done"
-              ? "text-zinc-200"
+              ? "text-foreground"
               : state === "loading"
-              ? "text-white"
+              ? "text-foreground font-semibold"
               : state === "failed"
-              ? "text-red-400"
-              : "text-zinc-600"
+              ? "text-red-500 dark:text-red-400"
+              : "text-muted-foreground/50"
           )}
         >
           {label}
         </p>
         {sub && state !== "pending" && (
-          <p className="text-xs text-zinc-500 mt-1">{sub}</p>
+          <p className="text-xs text-muted-foreground mt-1">{sub}</p>
         )}
       </div>
     </div>
@@ -213,7 +213,7 @@ function ResultsCard({
     <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 space-y-5">
       <div className="flex items-center gap-2">
         <span className="text-xl">✅</span>
-        <h3 className="text-base font-bold text-white">
+        <h3 className="text-base font-bold text-foreground">
           Done! Here&apos;s what we created:
         </h3>
       </div>
@@ -224,8 +224,8 @@ function ResultsCard({
           className={cn(
             "flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold",
             resumeAdded
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-              : "bg-zinc-800/60 border-zinc-700 text-zinc-400"
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-300"
+              : "bg-muted border-border text-muted-foreground"
           )}
         >
           <FileText size={13} />
@@ -241,8 +241,8 @@ function ResultsCard({
           className={cn(
             "flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold",
             portfolioAdded
-              ? "bg-blue-500/10 border-blue-500/30 text-blue-300"
-              : "bg-zinc-800/60 border-zinc-700 text-zinc-400"
+              ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-300"
+              : "bg-muted border-border text-muted-foreground"
           )}
         >
           <Globe size={13} />
@@ -257,7 +257,7 @@ function ResultsCard({
 
       {/* Reasoning */}
       {data.reasoning && (
-        <p className="text-xs text-zinc-400 leading-relaxed border-l-2 border-zinc-700 pl-3">
+        <p className="text-xs text-muted-foreground leading-relaxed border-l-2 border-border pl-3">
           {data.reasoning}
         </p>
       )}
@@ -278,7 +278,7 @@ function ResultsCard({
         <Button
           asChild
           variant="outline"
-          className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-sm"
+          className="border-border text-foreground hover:bg-muted text-sm"
         >
           <Link href="/resume">
             <FileText size={15} className="mr-1.5" />
@@ -289,7 +289,7 @@ function ResultsCard({
 
       <button
         onClick={onLogAnother}
-        className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1.5"
+        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
       >
         <Plus size={11} />
         Log another achievement
@@ -436,20 +436,20 @@ export function ProgressTracker({
   return (
     <div className="max-w-lg mx-auto mt-8">
       {/* Timeline */}
-      <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-zinc-400 mb-6 uppercase tracking-wider">
+      <div className="bg-card border border-border rounded-2xl p-6">
+        <h3 className="text-sm font-semibold text-muted-foreground mb-6 uppercase tracking-wider">
           Processing your achievement
         </h3>
 
         {error ? (
           <div className="text-center py-6">
-            <p className="text-red-400 text-sm mb-4">{error}</p>
+            <p className="text-red-500 dark:text-red-400 text-sm mb-4">{error}</p>
             {onRetry && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onRetry}
-                className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                className="border-border text-foreground hover:bg-muted"
               >
                 <RotateCcw size={14} className="mr-1.5" />
                 Try again
@@ -471,23 +471,23 @@ export function ProgressTracker({
             {/* Stuck banner — shown only when processing > 5 minutes */}
             {isStuck && (
               <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-                <p className="text-xs text-amber-400 font-semibold mb-1">Taking longer than usual</p>
-                <p className="text-xs text-zinc-500 mb-3">
+                <p className="text-xs text-amber-500 font-semibold mb-1">Taking longer than usual</p>
+                <p className="text-xs text-muted-foreground mb-3">
                   This achievement has been processing for over 5 minutes. You can retry the pipeline.
                 </p>
                 {retryError && (
-                  <p className="text-xs text-red-400 mb-2">{retryError}</p>
+                  <p className="text-xs text-red-500 dark:text-red-400 mb-2">{retryError}</p>
                 )}
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={isRetrying}
                   onClick={handleRetryProcessing}
-                  className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                  className="border-amber-500/40 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-300"
                 >
                   {isRetrying ? (
                     <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full border border-amber-400 border-t-transparent animate-spin" />
+                      <span className="w-3 h-3 rounded-full border border-amber-500 dark:border-amber-400 border-t-transparent animate-spin" />
                       Retrying...
                     </span>
                   ) : (
@@ -512,17 +512,17 @@ export function ProgressTracker({
       {/* Failed state */}
       {data?.status === "failed" && !error && (
         <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/5 p-6 text-center">
-          <p className="text-red-400 font-semibold mb-1">
+          <p className="text-red-500 dark:text-red-400 font-semibold mb-1">
             Something went wrong
           </p>
-          <p className="text-sm text-zinc-500 mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             The AI pipeline encountered an error processing your achievement.
           </p>
           {onRetry && (
             <Button
               variant="outline"
               onClick={onRetry}
-              className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+              className="border-border text-foreground hover:bg-muted"
             >
               <RotateCcw size={14} className="mr-1.5" />
               Try again

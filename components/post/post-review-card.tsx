@@ -71,10 +71,10 @@ function Toaster() {
           className={cn(
             "pointer-events-auto px-4 py-2.5 rounded-xl text-sm font-medium shadow-xl border animate-in slide-in-from-bottom-4 fade-in duration-200",
             t.variant === "success" &&
-              "bg-emerald-950 border-emerald-500/30 text-emerald-300",
+              "bg-accent border-primary/20 text-accent-foreground",
             t.variant === "error" &&
-              "bg-red-950 border-red-500/30 text-red-300",
-            t.variant === "default" && "bg-zinc-900 border-zinc-700 text-zinc-200"
+              "bg-destructive/10 border-destructive/20 text-destructive",
+            t.variant === "default" && "bg-card border-border text-foreground"
           )}
         >
           {t.text}
@@ -105,7 +105,7 @@ function CharCount({
         "text-xs tabular-nums",
         isRed && "text-red-400",
         isYellow && "text-yellow-400",
-        !isRed && !isYellow && "text-zinc-600"
+        !isRed && !isYellow && "text-muted-foreground"
       )}
     >
       {count.toLocaleString()} / {max.toLocaleString()}
@@ -150,13 +150,13 @@ function HashtagEditor({
       {hashtags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-700"
+          className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border"
         >
-          <Hash size={10} className="text-zinc-500" />
+          <Hash size={10} className="text-muted-foreground/60" />
           {tag}
           <button
             onClick={() => onChange(hashtags.filter((t) => t !== tag))}
-            className="ml-0.5 p-0.5 rounded-full hover:bg-zinc-700 text-zinc-500 hover:text-zinc-200 transition-colors"
+            className="ml-0.5 p-0.5 rounded-full hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={9} />
           </button>
@@ -180,12 +180,12 @@ function HashtagEditor({
           }}
           onBlur={addTag}
           placeholder="tag name..."
-          className="w-24 bg-zinc-800 border border-zinc-600 rounded-full px-2 py-0.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
+          className="w-24 bg-muted border border-border rounded-full px-2 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
         />
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-zinc-500 border border-zinc-700 border-dashed hover:border-zinc-500 hover:text-zinc-300 transition-colors"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-muted-foreground border border-border border-dashed hover:border-muted-foreground/80 hover:text-foreground transition-colors"
         >
           <Plus size={10} />
           Add tag
@@ -213,21 +213,21 @@ function LinkedInPreview({
   const preview = fullText.length > 280 && !expanded;
 
   return (
-    <div className="rounded-xl border border-zinc-700/60 bg-zinc-800/40 overflow-hidden">
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* LinkedIn header */}
       <div className="flex items-start gap-3 p-4 pb-3">
         {/* Avatar */}
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-zinc-600 to-zinc-700 shrink-0 flex items-center justify-center text-zinc-400 font-semibold text-sm select-none">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-muted-foreground/40 to-muted-foreground/60 shrink-0 flex items-center justify-center text-foreground font-semibold text-sm select-none">
           Y
         </div>
         <div>
-          <p className="text-sm font-semibold text-white leading-tight">
+          <p className="text-sm font-semibold text-foreground leading-tight">
             Your Name
           </p>
-          <p className="text-[11px] text-zinc-500 leading-tight mt-0.5">
+          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
             Career Autopilot User • 1st
           </p>
-          <p className="text-[11px] text-zinc-600 leading-tight">Just now</p>
+          <p className="text-[11px] text-muted-foreground/80 leading-tight">Just now</p>
         </div>
         {/* LinkedIn globe icon mock */}
         <div className="ml-auto">
@@ -237,13 +237,13 @@ function LinkedInPreview({
 
       {/* Post text */}
       <div className="px-4 pb-3">
-        <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap break-words">
+        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
           {preview ? fullText.slice(0, 280) + "…" : fullText}
         </p>
         {fullText.length > 280 && (
           <button
             onClick={() => setExpanded((e) => !e)}
-            className="text-xs text-zinc-500 hover:text-zinc-300 mt-1 transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground mt-1 transition-colors"
           >
             {expanded ? "Show less" : "…see more"}
           </button>
@@ -256,12 +256,12 @@ function LinkedInPreview({
         <img
           src={mediaUrl}
           alt="Post media"
-          className="w-full max-h-64 object-cover border-t border-zinc-700/50"
+          className="w-full max-h-64 object-cover border-t border-border/50"
         />
       )}
 
       {/* LinkedIn reactions bar */}
-      <div className="flex items-center gap-4 px-4 py-2.5 border-t border-zinc-700/40 text-[11px] text-zinc-600">
+      <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border/40 text-[11px] text-muted-foreground">
         <span>👍 Like</span>
         <span>💬 Comment</span>
         <span>🔁 Repost</span>
@@ -304,22 +304,22 @@ function TwitterPreview({
       {tweets.map((tw, i) => (
         <div
           key={i}
-          className="rounded-xl border border-zinc-700/60 bg-zinc-800/40 p-4"
+          className="rounded-xl border border-border bg-card p-4"
         >
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-zinc-600 to-zinc-700 shrink-0 flex items-center justify-center text-zinc-400 font-semibold text-sm">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-muted-foreground/40 to-muted-foreground/60 shrink-0 flex items-center justify-center text-foreground font-semibold text-sm">
               Y
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-bold text-white">Your Name</span>
-                <span className="text-xs text-zinc-600">@yourhandle · now</span>
+                <span className="text-sm font-bold text-foreground">Your Name</span>
+                <span className="text-xs text-muted-foreground">@yourhandle · now</span>
                 <Twitter size={13} className="ml-auto text-[#1d9bf0]" />
               </div>
-              <p className="text-sm text-zinc-200 whitespace-pre-wrap break-words leading-relaxed">
+              <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
                 {tw}
               </p>
-              <div className="flex items-center gap-4 mt-2 text-[11px] text-zinc-600">
+              <div className="flex items-center gap-4 mt-2 text-[11px] text-muted-foreground">
                 <span>💬</span>
                 <span>🔁</span>
                 <span>❤️</span>
@@ -328,8 +328,8 @@ function TwitterPreview({
             </div>
           </div>
           {i < tweets.length - 1 && (
-            <div className="ml-[18px] mt-2 border-l border-zinc-700 pl-3">
-              <span className="text-[10px] text-zinc-600">
+            <div className="ml-[18px] mt-2 border-l border-border pl-3">
+              <span className="text-[10px] text-muted-foreground">
                 {i + 1}/{tweets.length}
               </span>
             </div>
@@ -360,43 +360,43 @@ function PublishDialog({
   const preview = `${text}\n\n${hashtags.map((h) => `#${h}`).join(" ")}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Linkedin size={15} className="text-[#0077b5]" />
             Publish to LinkedIn
           </h2>
           <button
             onClick={onCancel}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={15} />
           </button>
         </div>
 
         <div className="overflow-y-auto p-5 space-y-4">
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-muted-foreground">
             This is exactly what will be posted. Review it carefully.
           </p>
-          <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4">
-            <p className="text-sm text-zinc-200 whitespace-pre-wrap break-words leading-relaxed">
+          <div className="rounded-xl border border-border bg-muted/40 p-4">
+            <p className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
               {preview}
             </p>
           </div>
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-muted-foreground/60">
             Posts cannot be edited after publishing through Career Autopilot.
             You can always edit directly on LinkedIn.
           </p>
         </div>
 
-        <div className="flex gap-3 px-5 py-4 border-t border-zinc-800">
+        <div className="flex gap-3 px-5 py-4 border-t border-border">
           <Button
             variant="ghost"
             size="sm"
             onClick={onCancel}
             disabled={isLoading}
-            className="text-zinc-500"
+            className="text-muted-foreground"
           >
             Cancel
           </Button>
@@ -431,7 +431,7 @@ function SaveIndicator({ state }: { state: SaveState }) {
       className={cn(
         "flex items-center gap-1.5 text-xs transition-all",
         state === "saved" && "text-emerald-400",
-        state === "saving" && "text-zinc-500",
+        state === "saving" && "text-muted-foreground",
         state === "error" && "text-red-400",
         state === "idle" && "text-transparent"
       )}
@@ -457,7 +457,7 @@ function SaveIndicator({ state }: { state: SaveState }) {
 // ---------------------------------------------------------------------------
 
 const STATUS_MAP = {
-  draft: { label: "Draft", className: "bg-zinc-800 text-zinc-400 border-zinc-700" },
+  draft: { label: "Draft", className: "bg-muted text-muted-foreground border-border" },
   approved: { label: "Approved", className: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
   published: { label: "Published", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
   failed: { label: "Failed", className: "bg-red-500/10 text-red-400 border-red-500/20" },
@@ -544,15 +544,15 @@ function ActionsPanel({
     <div className="flex flex-col gap-4">
       {/* Auto-save */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Status
         </span>
         <SaveIndicator state={saveState} />
       </div>
 
       {/* Status chip */}
-      <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
-        <span className="text-sm text-zinc-400">Post status</span>
+      <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 px-4 py-3">
+        <span className="text-sm text-muted-foreground">Post status</span>
         <StatusChip status={status} />
       </div>
 
@@ -561,7 +561,7 @@ function ActionsPanel({
         variant="outline"
         size="sm"
         onClick={() => copy(fullText)}
-        className="w-full justify-center gap-2 border-zinc-700 hover:border-zinc-600 text-zinc-300"
+        className="w-full justify-center gap-2 border-border text-foreground hover:bg-muted"
       >
         {copied ? (
           <Check size={13} className="text-emerald-400" />
@@ -582,14 +582,14 @@ function ActionsPanel({
               "w-full justify-center gap-2 font-bold",
               isPro
                 ? "bg-[#0077b5] hover:bg-[#006097] text-white"
-                : "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                : "bg-muted text-muted-foreground/50 cursor-not-allowed"
             )}
           >
             <Linkedin size={13} />
             Publish to LinkedIn
           </Button>
           {!isPro && (
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 text-center px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-xs text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl z-10">
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 text-center px-3 py-2 rounded-lg bg-card border border-border text-xs text-foreground opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl z-10">
               Upgrade to Pro to publish directly
             </div>
           )}
@@ -609,11 +609,11 @@ function ActionsPanel({
       )}
 
       {/* Achievement context */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+      <div className="rounded-xl border border-border bg-muted/40 p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
           Achievement
         </p>
-        <p className="text-xs text-zinc-400 leading-relaxed line-clamp-4">
+        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">
           {/* achievement rawInput is passed via parent */}
           This post was generated from your logged achievement.
         </p>
@@ -769,7 +769,7 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
       )}
 
       {/* ── Platform tabs ──────────────────────────────────────────────── */}
-      <div className="border-b border-zinc-800 px-4 sm:px-6">
+      <div className="border-b border-border px-4 sm:px-6">
         <div className="flex gap-1 -mb-px">
           {(["linkedin", "x"] as const).map((p) => (
             <button
@@ -778,8 +778,8 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
               className={cn(
                 "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors",
                 platform === p
-                  ? "border-emerald-500 text-white"
-                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
               {p === "linkedin" ? (
@@ -797,7 +797,7 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
       <div className="flex flex-col lg:flex-row gap-0 lg:min-h-[calc(100vh-12rem)]">
 
         {/* ── LEFT: preview + edit ─────────────────────────────────────── */}
-        <div className="flex-1 lg:border-r border-zinc-800 p-4 sm:p-6 space-y-5">
+        <div className="flex-1 lg:border-r border-border p-4 sm:p-6 space-y-5">
 
           {/* Preview */}
           {platform === "linkedin" ? (
@@ -813,7 +813,7 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
           {/* Edit textarea */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Edit post
               </label>
               <CharCount
@@ -826,14 +826,14 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
               value={editedText}
               onChange={(e) => handleTextChange(e.target.value)}
               rows={8}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 resize-none leading-relaxed transition-colors"
+              className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none leading-relaxed transition-colors"
               placeholder="Write your post here…"
             />
           </div>
 
           {/* Hashtags */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Hashtags
             </label>
             <HashtagEditor
@@ -844,21 +844,21 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
 
           {/* Media suggestion (LinkedIn only) */}
           {platform === "linkedin" && (
-            <div className="rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-4 space-y-3">
+            <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
               <div className="flex items-start gap-2">
                 <span className="text-base shrink-0">💡</span>
                 <div>
-                  <p className="text-xs font-semibold text-zinc-400 mb-0.5">
+                  <p className="text-xs font-semibold text-muted-foreground mb-0.5">
                     Suggested visual
                   </p>
-                  <p className="text-xs text-zinc-500 italic leading-relaxed">
+                  <p className="text-xs text-muted-foreground italic leading-relaxed">
                     {post.mediaPrompt ?? "No media suggestion available"}
                   </p>
                 </div>
               </div>
 
               {mediaUrl ? (
-                <div className="relative rounded-lg overflow-hidden border border-zinc-700">
+                <div className="relative rounded-lg overflow-hidden border border-border">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={mediaUrl}
@@ -867,7 +867,7 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
                   />
                   <button
                     onClick={() => setMediaUrl(null)}
-                    className="absolute top-2 right-2 p-1 rounded-full bg-zinc-900/80 text-zinc-400 hover:text-white transition-colors"
+                    className="absolute top-2 right-2 p-1 rounded-full bg-card text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <X size={14} />
                   </button>
@@ -876,7 +876,7 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-2 border-zinc-700 hover:border-zinc-600 text-zinc-400 hover:text-white w-full justify-center"
+                  className="gap-2 border-border text-muted-foreground hover:text-foreground w-full justify-center"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
                 >
@@ -893,9 +893,9 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
 
           {/* X note */}
           {platform === "x" && (
-            <div className="flex items-start gap-2 p-3 rounded-lg border border-zinc-800 bg-zinc-900/30">
-              <Clock size={13} className="text-zinc-600 mt-0.5 shrink-0" />
-              <p className="text-xs text-zinc-600 leading-relaxed">
+            <div className="flex items-start gap-2 p-3 rounded-lg border border-border bg-muted/30">
+              <Clock size={13} className="text-muted-foreground/60 mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground/60 leading-relaxed">
                 Direct publishing to X requires a paid X Developer account.
                 Use the copy button to paste directly into X.
               </p>
@@ -917,15 +917,15 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
           />
 
           {/* Achievement context card */}
-          <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+          <div className="mt-4 rounded-xl border border-border bg-muted/40 p-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               From achievement
             </p>
-            <p className="text-xs text-zinc-400 leading-relaxed line-clamp-5">
+            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-5">
               {achievement.rawInput}
             </p>
             {achievement.achievementType && (
-              <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
+              <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border">
                 {achievement.achievementType}
               </span>
             )}

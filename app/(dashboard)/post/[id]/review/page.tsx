@@ -42,17 +42,17 @@ export default async function PostReviewPage({
   return (
     <div className="min-h-full pb-20 md:pb-6">
       {/* Page header */}
-      <div className="px-4 sm:px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+      <div className="px-4 sm:px-6 py-4 border-b border-border flex items-center justify-between">
         <div>
           <Link
             href="/dashboard"
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors mb-1 inline-block"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors mb-1 inline-block"
           >
             ← Achievement Overview
           </Link>
-          <h1 className="text-lg font-semibold text-white">Review Post</h1>
+          <h1 className="text-lg font-semibold text-foreground">Review Post</h1>
         </div>
-        <span className="text-xs text-zinc-600">
+        <span className="text-xs text-muted-foreground/60">
           {row.post.platform === "linkedin" ? "LinkedIn" : "X / Twitter"}
         </span>
       </div>

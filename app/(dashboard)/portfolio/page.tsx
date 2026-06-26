@@ -29,9 +29,9 @@ export default async function PortfolioPage() {
 
   return (
     <div className="h-full pb-20 md:pb-0">
-      <div className="px-4 sm:px-6 py-4 border-b border-zinc-800">
-        <h1 className="text-lg font-semibold text-white">Portfolio</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">
+      <div className="px-4 sm:px-6 py-4 border-b border-border">
+        <h1 className="text-lg font-semibold text-foreground">Portfolio</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           {portfolioCfg?.deployUrl
             ? "Your portfolio is live — deployed automatically on new achievements"
             : "Connect GitHub to deploy your portfolio with one click"}

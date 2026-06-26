@@ -124,9 +124,9 @@ export function Header() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setDrawerOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/25 transition-colors"
                 >
-                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-emerald-500 text-zinc-950">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-emerald-500 text-black">
                     <Icon size={14} strokeWidth={2.5} />
                   </span>
                   {item.label}
@@ -142,7 +142,7 @@ export function Header() {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-accent text-emerald-500 dark:text-emerald-400"
+                    ? "bg-accent text-emerald-600 dark:text-emerald-400"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
               >
@@ -151,7 +151,7 @@ export function Header() {
                   strokeWidth={1.75}
                   className={cn(
                     "shrink-0",
-                    isActive ? "text-emerald-400" : "text-zinc-500"
+                    isActive ? "text-emerald-500 dark:text-emerald-400" : "text-muted-foreground/60"
                   )}
                 />
                 {item.label}

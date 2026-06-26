@@ -105,7 +105,7 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <Card className="bg-card/60 border-border hover:border-zinc-500/50 transition-colors">
+    <Card className="bg-card/60 border-border hover:border-muted-foreground/30 transition-colors">
       <CardHeader className="pb-2 pt-5 px-5">
         <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           {label}
@@ -199,7 +199,7 @@ const STATUS_STYLES: Record<
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_STYLES[status] ?? {
     label: status,
-    className: "border-zinc-700 bg-zinc-800 text-zinc-400",
+    className: "border-border bg-muted text-muted-foreground",
   };
   return (
     <span
@@ -216,8 +216,9 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// Check if type exists
 function TypeBadge({ type }: { type: string | null }) {
-  if (!type) return <span className="text-zinc-600 text-xs">—</span>;
+  if (!type) return <span className="text-muted-foreground/60 text-xs">—</span>;
   return (
     <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border">
       {type}
@@ -235,20 +236,20 @@ function EmptyState() {
       {/* CSS geometric illustration */}
       <div className="relative w-32 h-32 mb-8">
         {/* Outer ring */}
-        <div className="absolute inset-0 rounded-full border-2 border-zinc-800" />
+        <div className="absolute inset-0 rounded-full border-2 border-border" />
         {/* Inner circles */}
-        <div className="absolute inset-4 rounded-full border border-zinc-700" />
-        <div className="absolute inset-8 rounded-full bg-zinc-800/60 border border-zinc-700" />
+        <div className="absolute inset-4 rounded-full border border-border/80" />
+        <div className="absolute inset-8 rounded-full bg-muted/60 border border-border" />
         {/* Rocket icon center */}
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-            <Rocket size={18} className="text-emerald-400" />
+            <Rocket size={18} className="text-emerald-500 dark:text-emerald-400" />
           </div>
         </div>
         {/* Orbiting dots */}
         <div className="absolute top-1 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-emerald-500/60" />
-        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 rounded-full bg-zinc-600" />
-        <div className="absolute top-1/2 right-1 -translate-y-1/2 translate-x-1/2 w-2 h-2 rounded-full bg-zinc-700" />
+        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 rounded-full bg-muted-foreground/40" />
+        <div className="absolute top-1/2 right-1 -translate-y-1/2 translate-x-1/2 w-2 h-2 rounded-full bg-muted-foreground/30" />
       </div>
 
       <h2 className="text-xl font-bold text-foreground mb-2">
@@ -258,7 +259,7 @@ function EmptyState() {
         Log your first achievement and we&apos;ll automatically draft your
         LinkedIn post, update your resume, and keep your portfolio fresh.
       </p>
-      <Button asChild className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold shadow-lg shadow-emerald-500/20">
+      <Button asChild className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold shadow-lg shadow-emerald-500/20">
         <Link href="/achievement/new">
           <Plus size={16} className="mr-1.5" />
           Log your first achievement →
@@ -335,7 +336,7 @@ function RecentTable({
                       <ExternalLink size={11} />
                     </Link>
                   ) : (
-                    <span className="text-xs text-zinc-600">—</span>
+                    <span className="text-xs text-muted-foreground/50">—</span>
                   )}
                 </TableCell>
               </TableRow>
@@ -424,7 +425,7 @@ export default async function DashboardPage() {
         </div>
         <Button
           asChild
-          className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold shadow-md shadow-emerald-500/15 shrink-0"
+          className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold shadow-md shadow-emerald-500/15 shrink-0"
         >
           <Link href="/achievement/new">
             <Rocket size={15} className="mr-2" />

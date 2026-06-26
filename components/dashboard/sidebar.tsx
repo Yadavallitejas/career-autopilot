@@ -102,10 +102,10 @@ export function Sidebar({ user }: SidebarProps) {
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 group",
-                    "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
+                    "bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/25"
                   )}
                 >
-                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-emerald-500 text-zinc-950">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-emerald-500 text-black">
                     <Icon size={14} strokeWidth={2.5} />
                   </span>
                   {item.label}
@@ -120,7 +120,7 @@ export function Sidebar({ user }: SidebarProps) {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group",
                   isActive
-                    ? "bg-accent text-emerald-500 dark:text-emerald-400"
+                    ? "bg-accent text-emerald-600 dark:text-emerald-400"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
               >
@@ -130,13 +130,13 @@ export function Sidebar({ user }: SidebarProps) {
                   className={cn(
                     "shrink-0 transition-colors",
                     isActive
-                      ? "text-emerald-400"
+                      ? "text-emerald-500 dark:text-emerald-400"
                       : "text-muted-foreground group-hover:text-foreground"
                   )}
                 />
                 <span className="flex-1">{item.label}</span>
                 {item.proGated && !isPro && (
-                  <span className="text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-500/30 px-1.5 py-0.5 rounded-full">
                     Pro
                   </span>
                 )}
@@ -148,9 +148,9 @@ export function Sidebar({ user }: SidebarProps) {
         {user.plan === 'free' && (
           <div className="p-4 border-t border-border shrink-0">
             <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-2">
-              <div className="text-xs font-medium text-emerald-500 dark:text-emerald-400">Upgrade to Pro</div>
+              <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Upgrade to Pro</div>
               <div className="text-xs text-muted-foreground">Unlimited achievements, LinkedIn publish, custom resume</div>
-              <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-500 text-xs text-zinc-100 font-medium" asChild>
+              <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-medium" asChild>
                 <Link href="/settings?tab=billing">Upgrade — ₹499/mo</Link>
               </Button>
             </div>
@@ -177,7 +177,7 @@ export function Sidebar({ user }: SidebarProps) {
               className={cn(
                 "shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border",
                 isPro
-                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                  ? "bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:border-emerald-500/30"
                   : "bg-muted text-muted-foreground border-border"
               )}
             >
@@ -209,21 +209,21 @@ export function Sidebar({ user }: SidebarProps) {
               className={cn(
                 "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-150 min-w-[56px]",
                 item.accent
-                  ? "text-emerald-500 dark:text-emerald-400"
+                  ? "text-emerald-600 dark:text-emerald-400"
                   : isActive
-                  ? "text-emerald-500 dark:text-emerald-400"
+                  ? "text-emerald-600 dark:text-emerald-400"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
               {item.accent ? (
                 <span className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                  <Icon size={17} strokeWidth={2.5} className="text-zinc-950" />
+                  <Icon size={17} strokeWidth={2.5} className="text-black" />
                 </span>
               ) : (
                 <Icon
                   size={20}
                   strokeWidth={isActive ? 2 : 1.75}
-                  className={isActive ? "text-emerald-400" : ""}
+                  className={isActive ? "text-emerald-500 dark:text-emerald-400" : ""}
                 />
               )}
               <span className="text-[9px] font-medium leading-none tracking-tight">

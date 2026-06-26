@@ -39,7 +39,7 @@ function UpgradeModal({
       <div className="relative z-10 w-full max-w-sm bg-card border border-border rounded-2xl p-6 shadow-2xl">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Close"
         >
           <X size={18} />
@@ -147,7 +147,7 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
       ? "text-red-400"
       : charCount < MIN_CHARS && charCount > 0
       ? "text-amber-400"
-      : "text-zinc-500";
+      : "text-muted-foreground";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -307,7 +307,7 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
                 "focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all duration-200",
                 charCount > MAX_CHARS
                   ? "border-red-500/50 focus:border-red-500/50"
-                  : "border-border hover:border-zinc-500/50 focus:border-emerald-500/50"
+                  : "border-border hover:border-muted-foreground/30 focus:border-emerald-500/50"
               )}
               disabled={isSubmitting}
               autoFocus

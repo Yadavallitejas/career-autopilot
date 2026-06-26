@@ -59,13 +59,13 @@ function TypingIndicator() {
   return (
     <div className="flex items-end gap-3 mb-5">
       <div className="w-8 h-8 rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0">
-        <Bot size={15} className="text-emerald-400" />
+        <Bot size={15} className="text-emerald-500 dark:text-emerald-400" />
       </div>
-      <div className="bg-zinc-800/80 border border-zinc-700/60 rounded-2xl rounded-bl-sm px-4 py-3">
+      <div className="bg-muted border border-border rounded-2xl rounded-bl-sm px-4 py-3">
         <div className="flex gap-1.5 items-center h-4">
-          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0ms]" />
-          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:150ms]" />
-          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:300ms]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
         </div>
       </div>
     </div>
@@ -99,9 +99,9 @@ function MessageBubble({ msg }: { msg: Message }) {
         )}
       >
         {isUser ? (
-          <User size={14} className="text-emerald-400" />
+          <User size={14} className="text-emerald-500 dark:text-emerald-400" />
         ) : (
-          <Bot size={15} className="text-emerald-400" />
+          <Bot size={15} className="text-emerald-500 dark:text-emerald-400" />
         )}
       </div>
 
@@ -113,29 +113,30 @@ function MessageBubble({ msg }: { msg: Message }) {
             isUser
               ? 'bg-emerald-600 text-white rounded-2xl rounded-br-sm shadow-lg shadow-emerald-900/30'
               : msg.isError
-              ? 'bg-red-500/10 border border-red-500/20 text-red-300 rounded-2xl rounded-bl-sm'
-              : 'bg-zinc-800/80 border border-zinc-700/60 text-zinc-100 rounded-2xl rounded-bl-sm'
+              ? 'bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-300 rounded-2xl rounded-bl-sm'
+              : 'bg-muted/80 border border-border text-foreground rounded-2xl rounded-bl-sm'
           )}
         >
           {isUser ? (
             <p className="whitespace-pre-wrap">{msg.content}</p>
           ) : msg.isError ? (
             <div className="flex items-start gap-2">
-              <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
+              <AlertCircle size={14} className="text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
               <p>{msg.content}</p>
             </div>
           ) : (
             <div className="prose prose-sm prose-invert max-w-none
               prose-p:my-1 prose-p:leading-relaxed
-              prose-headings:text-zinc-100 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1
-              prose-strong:text-white prose-strong:font-semibold
+              prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1
+              prose-strong:text-foreground prose-strong:font-semibold
+              prose-strong:dark:text-white
               prose-ul:my-1.5 prose-ul:pl-4 prose-li:my-0.5
               prose-ol:my-1.5 prose-ol:pl-4
-              prose-code:bg-zinc-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-emerald-300 prose-code:text-xs
-              prose-blockquote:border-l-emerald-500 prose-blockquote:text-zinc-400">
+              prose-code:bg-card prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-emerald-600 dark:prose-code:text-emerald-300 prose-code:text-xs
+              prose-blockquote:border-l-emerald-500 prose-blockquote:text-muted-foreground">
               <ReactMarkdown>{msg.content}</ReactMarkdown>
               {msg.isStreaming && (
-                <span className="inline-block w-1.5 h-4 bg-emerald-400 rounded-sm animate-pulse ml-0.5 align-text-bottom" />
+                <span className="inline-block w-1.5 h-4 bg-emerald-500 dark:bg-emerald-400 rounded-sm animate-pulse ml-0.5 align-text-bottom" />
               )}
             </div>
           )}
@@ -144,7 +145,7 @@ function MessageBubble({ msg }: { msg: Message }) {
         {/* Timestamp — visible on hover */}
         <p
           className={cn(
-            'text-[10px] text-zinc-600 px-1 transition-opacity duration-150',
+            'text-[10px] text-muted-foreground/60 px-1 transition-opacity duration-150',
             showTime ? 'opacity-100' : 'opacity-0',
             isUser ? 'text-right' : 'text-left'
           )}
@@ -310,7 +311,7 @@ export function CoachChat({ userEmail, userName }: CoachChatProps) {
             {/* Icon */}
             <div className="relative">
               <div className="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                <Bot size={36} className="text-emerald-400" />
+                <Bot size={36} className="text-emerald-500 dark:text-emerald-400" />
               </div>
               <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
                 <Sparkles size={12} className="text-zinc-950" />
@@ -319,10 +320,10 @@ export function CoachChat({ userEmail, userName }: CoachChatProps) {
 
             {/* Greeting */}
             <div>
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-xl font-bold text-foreground">
                 Hey{userName ? `, ${userName.split(' ')[0]}` : ''}! 👋
               </h2>
-              <p className="text-zinc-400 mt-1.5 text-sm leading-relaxed max-w-sm">
+              <p className="text-muted-foreground mt-1.5 text-sm leading-relaxed max-w-sm">
                 I'm your AI career coach. I know your resume and achievements —
                 ask me anything about your career.
               </p>
@@ -335,11 +336,11 @@ export function CoachChat({ userEmail, userName }: CoachChatProps) {
                   key={s.label}
                   onClick={() => sendMessage(s.prompt)}
                   disabled={isStreaming}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/60 text-left transition-all duration-200 group"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border hover:border-muted-foreground/30 hover:bg-muted text-left transition-all duration-200 group"
                 >
                   <span className="text-lg leading-none">{s.icon}</span>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors truncate">
+                    <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors truncate">
                       {s.label}
                     </p>
                   </div>
@@ -363,12 +364,12 @@ export function CoachChat({ userEmail, userName }: CoachChatProps) {
       </div>
 
       {/* ── Input area ────────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-t border-zinc-800/80 bg-zinc-950/90 backdrop-blur-sm px-4 sm:px-6 py-4">
+      <div className="shrink-0 border-t border-border bg-background/90 dark:bg-zinc-950/90 backdrop-blur-sm px-4 sm:px-6 py-4">
         <div className="max-w-3xl mx-auto">
           {/* New conversation prompt */}
           {!isEmpty && !isStreaming && (
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-zinc-600">
+              <p className="text-xs text-muted-foreground/75">
                 Shift+Enter for new line · Enter to send
               </p>
               <button
@@ -376,7 +377,7 @@ export function CoachChat({ userEmail, userName }: CoachChatProps) {
                   setMessages([])
                   setConversationId(undefined)
                 }}
-                className="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground/80 hover:text-foreground transition-colors"
               >
                 <RefreshCw size={11} />
                 New chat
@@ -385,7 +386,7 @@ export function CoachChat({ userEmail, userName }: CoachChatProps) {
           )}
 
           {/* Textarea + send */}
-          <div className="flex items-end gap-3 bg-zinc-900/80 border border-zinc-700/60 rounded-2xl px-4 py-3 focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all duration-200">
+          <div className="flex items-end gap-3 bg-card border border-border rounded-2xl px-4 py-3 focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all duration-200">
             <textarea
               ref={textareaRef}
               value={input}
@@ -394,22 +395,22 @@ export function CoachChat({ userEmail, userName }: CoachChatProps) {
               placeholder="Ask your career coach anything…"
               rows={1}
               disabled={isStreaming}
-              className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 resize-none focus:outline-none leading-relaxed disabled:opacity-50 min-h-[24px] max-h-[160px]"
+              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none leading-relaxed disabled:opacity-50 min-h-[24px] max-h-[160px]"
             />
 
             {isStreaming ? (
               <button
                 onClick={stopStreaming}
-                className="shrink-0 w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-colors"
+                className="shrink-0 w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 dark:text-red-400 hover:bg-red-500/20 transition-colors"
                 title="Stop generating"
               >
-                <span className="w-3 h-3 rounded-sm bg-red-400" />
+                <span className="w-3 h-3 rounded-sm bg-red-500 dark:bg-red-400" />
               </button>
             ) : (
               <button
                 onClick={() => sendMessage(input)}
                 disabled={!input.trim() || isStreaming}
-                className="shrink-0 w-9 h-9 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 flex items-center justify-center text-zinc-950 disabled:text-zinc-600 transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:shadow-none"
+                className="shrink-0 w-9 h-9 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-muted disabled:text-muted-foreground/45 flex items-center justify-center text-zinc-950 disabled:text-muted-foreground/40 transition-all duration-200 shadow-lg shadow-emerald-500/20 disabled:shadow-none"
                 title="Send (Enter)"
               >
                 <Send size={15} />
@@ -418,7 +419,7 @@ export function CoachChat({ userEmail, userName }: CoachChatProps) {
           </div>
 
           {/* Disclaimer */}
-          <p className="text-[10px] text-zinc-700 text-center mt-2">
+          <p className="text-[10px] text-muted-foreground/60 text-center mt-2">
             AI can make mistakes. Always verify important career decisions independently.
           </p>
         </div>

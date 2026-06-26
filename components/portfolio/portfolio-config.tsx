@@ -81,7 +81,7 @@ const LANG_COLORS: Record<string, string> = {
 
 function LangBadge({ lang }: { lang: string | null }) {
   if (!lang) return null
-  const cls = LANG_COLORS[lang] ?? 'bg-zinc-700/30 text-zinc-400 border-zinc-600/30'
+  const cls = LANG_COLORS[lang] ?? 'bg-muted text-muted-foreground border-border'
   return (
     <span
       className={cn(
@@ -219,10 +219,10 @@ function ResumePortfolioGenerator({
   return (
     <div className="space-y-6 max-w-lg">
       <div>
-        <h3 className="text-sm font-semibold text-white mb-1">
+        <h3 className="text-sm font-semibold text-foreground mb-1">
           Choose a template
         </h3>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-muted-foreground">
           We'll generate a static HTML page from your resume and achievements — no GitHub needed.
         </p>
       </div>
@@ -238,24 +238,24 @@ function ResumePortfolioGenerator({
               className={cn(
                 'relative flex flex-col items-start gap-3 p-4 rounded-xl border text-left transition-all duration-200',
                 selected
-                  ? 'border-emerald-500 bg-emerald-500/10'
-                  : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600'
+                  ? 'border-primary bg-accent text-accent-foreground'
+                  : 'border-border bg-card text-foreground hover:bg-muted'
               )}
             >
               {t.recommended && (
-                <span className="absolute top-2 right-2 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5">
+                <span className="absolute top-2 right-2 text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5">
                   Recommended
                 </span>
               )}
               <Icon
                 size={20}
-                className={selected ? 'text-emerald-400' : 'text-zinc-500'}
+                className={selected ? 'text-primary' : 'text-muted-foreground'}
               />
               <div>
-                <p className={cn('text-sm font-semibold', selected ? 'text-emerald-400' : 'text-zinc-200')}>
+                <p className={cn('text-sm font-semibold', selected ? 'text-primary' : 'text-foreground')}>
                   {t.label}
                 </p>
-                <p className="text-xs text-zinc-500 mt-0.5 leading-snug">{t.desc}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{t.desc}</p>
               </div>
             </button>
           )
@@ -288,7 +288,7 @@ function ResumePortfolioGenerator({
         )}
       </Button>
 
-      <p className="text-[11px] text-zinc-600 text-center">
+      <p className="text-[11px] text-muted-foreground text-center">
         Generates instantly · Hosted on Supabase · Public URL ready to share
       </p>
     </div>
@@ -357,14 +357,14 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
       )}
 
       {/* Tab selector */}
-      <div className="flex gap-1 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
+      <div className="flex gap-1 p-1 bg-muted rounded-xl border border-border">
         <button
           onClick={() => setTab('github')}
           className={cn(
             'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all',
             tab === 'github'
-              ? 'bg-zinc-800 text-white shadow-sm'
-              : 'text-zinc-500 hover:text-zinc-300'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
           )}
         >
           <Github size={15} />
@@ -375,8 +375,8 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
           className={cn(
             'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all',
             tab === 'resume'
-              ? 'bg-zinc-800 text-white shadow-sm'
-              : 'text-zinc-500 hover:text-zinc-300'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
           )}
         >
           <FileText size={15} />
@@ -388,8 +388,8 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
       {tab === 'github' && !showGuide && (
         <div className="space-y-5">
           <div>
-            <h2 className="text-xl font-bold text-white">Connect your GitHub account</h2>
-            <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">
+            <h2 className="text-xl font-bold text-foreground">Connect your GitHub account</h2>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
               Link GitHub to browse your repositories and deploy your portfolio with one click.
               No manual configuration needed.
             </p>
@@ -398,21 +398,21 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
           {/* Direct OAuth button */}
           <a
             href="/api/portfolio/github-auth"
-            className="flex items-center justify-center gap-3 w-full py-3 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-sm transition-colors shadow-lg shadow-black/20"
+            className="flex items-center justify-center gap-3 w-full py-3 rounded-xl bg-foreground text-background font-semibold text-sm hover:bg-foreground/90 transition-colors shadow-lg"
           >
             <Github size={18} />
             Continue with GitHub
           </a>
 
           <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-zinc-800" />
-            <span className="text-xs text-zinc-600">Don't have GitHub?</span>
-            <div className="flex-1 h-px bg-zinc-800" />
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground/60">Don't have GitHub?</span>
+            <div className="flex-1 h-px bg-border" />
           </div>
 
           <button
             onClick={() => setShowGuide(true)}
-            className="w-full py-2.5 rounded-xl border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 text-sm font-medium transition-colors"
+            className="w-full py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30 text-sm font-medium transition-colors"
           >
             Create a GitHub account →
           </button>
@@ -425,25 +425,25 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowGuide(false)}
-              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             >
               <X size={15} />
             </button>
             <div>
-              <h2 className="text-sm font-semibold text-white">Create a GitHub account</h2>
-              <p className="text-xs text-zinc-500">Free and takes 2 minutes</p>
+              <h2 className="text-sm font-semibold text-foreground">Create a GitHub account</h2>
+              <p className="text-xs text-muted-foreground">Free and takes 2 minutes</p>
             </div>
           </div>
 
           <div className="space-y-3">
             {GITHUB_SETUP_STEPS.map((step, i) => (
-              <div key={i} className="flex gap-3 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                <div className="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
+              <div key={i} className="flex gap-3 p-3 rounded-xl bg-muted/40 border border-border">
+                <div className="w-6 h-6 rounded-full bg-primary/15 border border-primary/20 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                   {i + 1}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-zinc-200">{step.title}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">{step.description}</p>
+                  <p className="text-sm font-medium text-foreground">{step.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
                 </div>
               </div>
             ))}
@@ -453,7 +453,7 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
             href="https://github.com/signup"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white font-medium text-sm transition-colors"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted font-medium text-sm transition-colors"
           >
             <Github size={16} />
             Create GitHub account →
@@ -461,7 +461,7 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
 
           <button
             onClick={() => setShowGuide(false)}
-            className="w-full text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             I already have GitHub — connect it →
           </button>
@@ -472,8 +472,8 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
       {tab === 'resume' && (
         <div className="space-y-4">
           <div>
-            <h2 className="text-xl font-bold text-white">Portfolio from resume</h2>
-            <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">
+            <h2 className="text-xl font-bold text-foreground">Portfolio from resume</h2>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
               We'll generate a beautiful static portfolio page from your resume and recent achievements.
               No GitHub or build step required.
             </p>
@@ -543,14 +543,14 @@ function RepoSelector({
       <div className="relative mb-4">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
         />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Filter repositories..."
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-9 pr-4 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500"
+          className="w-full bg-card border border-border rounded-xl pl-9 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
         />
       </div>
 
@@ -560,7 +560,7 @@ function RepoSelector({
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="h-16 rounded-xl bg-zinc-900/60 border border-zinc-800 animate-pulse"
+              className="h-16 rounded-xl bg-muted border border-border animate-pulse"
             />
           ))}
         </div>
@@ -572,14 +572,14 @@ function RepoSelector({
             size="sm"
             variant="ghost"
             onClick={() => void loadRepos(1, false)}
-            className="text-zinc-400"
+            className="text-muted-foreground"
           >
             <RefreshCw size={13} className="mr-1.5" />
             Retry
           </Button>
         </div>
       ) : filtered.length === 0 ? (
-        <p className="text-center text-sm text-zinc-500 py-12">
+        <p className="text-center text-sm text-muted-foreground py-12">
           No repositories match &ldquo;{search}&rdquo;
         </p>
       ) : (
@@ -588,23 +588,23 @@ function RepoSelector({
             <button
               key={repo.id}
               onClick={() => onSelect(repo)}
-              className="w-full text-left p-4 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-zinc-600 hover:bg-zinc-900 transition-all group"
+              className="w-full text-left p-4 rounded-xl border border-border bg-card hover:border-muted-foreground/30 hover:bg-muted transition-all group"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-semibold text-white truncate">
+                    <span className="text-sm font-semibold text-foreground truncate">
                       {repo.name}
                     </span>
                     <LangBadge lang={repo.language} />
                   </div>
                   {repo.description && (
-                    <p className="text-xs text-zinc-500 truncate">
+                    <p className="text-xs text-muted-foreground truncate">
                       {repo.description}
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-3 shrink-0 text-zinc-500 text-xs">
+                <div className="flex items-center gap-3 shrink-0 text-muted-foreground text-xs">
                   {repo.stargazers_count > 0 && (
                     <span className="flex items-center gap-1">
                       <Star size={11} />
@@ -630,7 +630,7 @@ function RepoSelector({
             <Button
               variant="ghost"
               size="sm"
-              className="w-full text-zinc-500 hover:text-zinc-300 mt-2"
+              className="w-full text-muted-foreground hover:text-foreground mt-2"
               onClick={() => {
                 const nextPage = page + 1;
                 setPage(nextPage);
@@ -702,13 +702,13 @@ function DetectStep({
       <div className="flex items-center gap-2 mb-6">
         <button
           onClick={onBack}
-          className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
         >
           <X size={15} />
         </button>
         <div>
-          <h2 className="text-sm font-semibold text-white">Reviewing {repo.name}</h2>
-          <p className="text-xs text-zinc-500">
+          <h2 className="text-sm font-semibold text-foreground">Reviewing {repo.name}</h2>
+          <p className="text-xs text-muted-foreground">
             Detecting project type…
           </p>
         </div>
@@ -717,7 +717,7 @@ function DetectStep({
       {loading ? (
         <div className="flex flex-col items-center gap-4 py-16">
           <Loader2 size={32} className="text-emerald-400 animate-spin" />
-          <p className="text-sm text-zinc-400">Analysing repository structure…</p>
+          <p className="text-sm text-muted-foreground">Analysing repository structure…</p>
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -726,7 +726,7 @@ function DetectStep({
           <Button
             size="sm"
             variant="ghost"
-            className="text-zinc-400"
+            className="text-muted-foreground"
             onClick={onBack}
           >
             Go back
@@ -735,18 +735,18 @@ function DetectStep({
       ) : detection ? (
         <div className="flex flex-col gap-4">
           {/* Detection result card */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 space-y-3">
+          <div className="rounded-xl border border-border bg-muted/40 p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Project type
               </span>
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
                 {detection.projectType}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Deploy to
               </span>
               <PlatformBadge platform={detection.deployTarget} />
@@ -754,10 +754,10 @@ function DetectStep({
 
             {detection.buildCommand && (
               <div className="flex items-start justify-between gap-3">
-                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider shrink-0">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
                   Build command
                 </span>
-                <code className="text-xs text-zinc-300 bg-zinc-800 px-2 py-1 rounded font-mono">
+                <code className="text-xs text-foreground bg-muted px-2 py-1 rounded font-mono border border-border">
                   {detection.buildCommand}
                 </code>
               </div>
@@ -765,20 +765,20 @@ function DetectStep({
 
             {detection.outputDir && (
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Output dir
                 </span>
-                <code className="text-xs text-zinc-300 bg-zinc-800 px-2 py-1 rounded font-mono">
+                <code className="text-xs text-foreground bg-muted px-2 py-1 rounded font-mono border border-border">
                   {detection.outputDir}
                 </code>
               </div>
             )}
 
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Est. deploy time
               </span>
-              <span className="text-xs text-zinc-400">
+              <span className="text-xs text-muted-foreground">
                 ~{detection.estimatedDeployMinutes} min
               </span>
             </div>
@@ -795,7 +795,7 @@ function DetectStep({
                 <p className="text-xs font-semibold text-yellow-400 mb-0.5">
                   Unknown project type
                 </p>
-                <p className="text-xs text-zinc-500 leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   We couldn&apos;t detect a known framework. Deployment will attempt
                   a static file deploy — it may not work as expected.
                 </p>
@@ -812,7 +812,7 @@ function DetectStep({
                 onChange={(e) => setConfirmed(e.target.checked)}
                 className="peer sr-only"
               />
-              <div className="w-4 h-4 rounded border border-zinc-600 peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-colors" />
+              <div className="w-4 h-4 rounded border border-border peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-colors" />
               <CheckCircle2
                 size={10}
                 className={cn(
@@ -821,11 +821,11 @@ function DetectStep({
                 )}
               />
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed">
+            <p className="text-xs text-muted-foreground leading-relaxed">
               I understand this will deploy{" "}
-              <span className="text-white font-medium">{repo.full_name}</span>{" "}
+              <span className="text-foreground font-medium">{repo.full_name}</span>{" "}
               to{" "}
-              <span className="text-white font-medium">
+              <span className="text-foreground font-medium">
                 {PLATFORM_LABELS[detection.deployTarget] ?? detection.deployTarget}
               </span>{" "}
               and make it publicly accessible.
@@ -837,7 +837,7 @@ function DetectStep({
               variant="ghost"
               size="sm"
               onClick={onBack}
-              className="text-zinc-500"
+              className="text-muted-foreground"
             >
               Back
             </Button>
@@ -972,15 +972,15 @@ function DeployStep({
             </div>
           </div>
           <div>
-            <p className="text-base font-semibold text-white mb-1">
+            <p className="text-base font-semibold text-foreground mb-1">
               Deploying to {platform}…
             </p>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-muted-foreground">
               This takes ~{detection.estimatedDeployMinutes} min. Hang tight.
             </p>
           </div>
           {deployUrl && (
-            <p className="text-xs text-zinc-600 font-mono break-all max-w-sm">
+            <p className="text-xs text-muted-foreground font-mono break-all max-w-sm">
               {deployUrl}
             </p>
           )}
@@ -991,7 +991,7 @@ function DeployStep({
         <>
           <CheckCircle2 size={52} className="text-emerald-400" />
           <div>
-            <p className="text-lg font-bold text-white mb-1">
+            <p className="text-lg font-bold text-foreground mb-1">
               Portfolio is live! 🎉
             </p>
             <a
@@ -1009,7 +1009,7 @@ function DeployStep({
       {status === "failed" && (
         <div className="flex flex-col items-center gap-3">
           <AlertTriangle size={40} className="text-red-400" />
-          <p className="text-sm text-zinc-400">Deployment failed</p>
+          <p className="text-sm text-muted-foreground">Deployment failed</p>
         </div>
       )}
     </div>
@@ -1046,7 +1046,7 @@ function RepoWizard({ onComplete }: { onComplete: (url: string) => void }) {
       {showConfetti && <Confetti />}
 
       {/* Step indicator */}
-      <div className="border-b border-zinc-800 px-4 sm:px-6 py-3">
+      <div className="border-b border-border px-4 sm:px-6 py-3">
         <div className="flex items-center gap-3 max-w-2xl mx-auto">
           {STEPS.map((s, idx) => (
             <div key={s} className="flex items-center gap-2">
@@ -1054,10 +1054,10 @@ function RepoWizard({ onComplete }: { onComplete: (url: string) => void }) {
                 className={cn(
                   "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-colors",
                   idx < stepIdx
-                    ? "bg-emerald-500 border-emerald-500 text-zinc-950"
+                    ? "bg-primary border-primary text-primary-foreground"
                     : idx === stepIdx
-                    ? "bg-zinc-800 border-zinc-600 text-white"
-                    : "bg-transparent border-zinc-800 text-zinc-600"
+                    ? "bg-muted border-border text-foreground"
+                    : "bg-transparent border-border text-muted-foreground/50"
                 )}
               >
                 {idx < stepIdx ? (
@@ -1069,7 +1069,7 @@ function RepoWizard({ onComplete }: { onComplete: (url: string) => void }) {
               <span
                 className={cn(
                   "text-xs hidden sm:inline transition-colors",
-                  idx === stepIdx ? "text-white font-medium" : "text-zinc-600"
+                  idx === stepIdx ? "text-foreground font-medium" : "text-muted-foreground/50"
                 )}
               >
                 {STEP_LABELS[s]}
@@ -1078,7 +1078,7 @@ function RepoWizard({ onComplete }: { onComplete: (url: string) => void }) {
                 <div
                   className={cn(
                     "h-px w-8 transition-colors",
-                    idx < stepIdx ? "bg-emerald-500/40" : "bg-zinc-800"
+                    idx < stepIdx ? "bg-primary/40" : "bg-border"
                   )}
                 />
               )}
@@ -1117,7 +1117,7 @@ function RepoWizard({ onComplete }: { onComplete: (url: string) => void }) {
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-zinc-400"
+                className="text-muted-foreground"
                 onClick={() => {
                   setDeployError(null);
                   setStep("detect");
@@ -1162,10 +1162,10 @@ function ConfiguredView({
             Live
           </span>
         </div>
-        <h2 className="text-lg font-bold text-white mb-1 truncate">
+        <h2 className="text-lg font-bold text-foreground mb-1 truncate">
           {config.deployUrl}
         </h2>
-        <p className="text-xs text-zinc-500 mb-4">
+        <p className="text-xs text-muted-foreground mb-4">
           Your portfolio is publicly accessible
         </p>
         <div className="flex gap-3">
@@ -1183,7 +1183,7 @@ function ConfiguredView({
             variant="outline"
             size="sm"
             onClick={onRedeploy}
-            className="border-zinc-700 hover:border-zinc-600 text-zinc-300 gap-2"
+            className="border-border text-foreground hover:bg-muted gap-2"
           >
             <RefreshCw size={13} />
             Update deployment
@@ -1192,18 +1192,18 @@ function ConfiguredView({
       </div>
 
       {/* Details */}
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 divide-y divide-zinc-800">
+      <div className="rounded-xl border border-border bg-muted/40 divide-y divide-border">
         {config.deployPlatform && (
           <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-xs text-zinc-500">Platform</span>
+            <span className="text-xs text-muted-foreground">Platform</span>
             <PlatformBadge platform={config.deployPlatform} />
           </div>
         )}
 
         {config.projectType && (
           <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-xs text-zinc-500">Project type</span>
-            <span className="text-xs font-medium text-zinc-300 px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700">
+            <span className="text-xs text-muted-foreground">Project type</span>
+            <span className="text-xs font-medium text-foreground px-2 py-0.5 rounded bg-card border border-border">
               {config.projectType}
             </span>
           </div>
@@ -1211,12 +1211,12 @@ function ConfiguredView({
 
         {config.githubRepoUrl && (
           <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-xs text-zinc-500">Repository</span>
+            <span className="text-xs text-muted-foreground">Repository</span>
             <a
               href={config.githubRepoUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <Github size={12} />
               {config.githubRepoUrl.replace("https://github.com/", "")}
@@ -1227,8 +1227,8 @@ function ConfiguredView({
 
         {config.lastDeployed && (
           <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-xs text-zinc-500">Last deployed</span>
-            <span className="text-xs text-zinc-400">
+            <span className="text-xs text-muted-foreground">Last deployed</span>
+            <span className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(config.lastDeployed), {
                 addSuffix: true,
               })}

@@ -69,9 +69,9 @@ export default async function SettingsPage({
 
   return (
     <div className="min-h-full pb-20 md:pb-6">
-      <div className="px-4 sm:px-6 py-4 border-b border-zinc-800">
-        <h1 className="text-lg font-semibold text-white">Settings</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">
+      <div className="px-4 sm:px-6 py-4 border-b border-border">
+        <h1 className="text-lg font-semibold text-foreground">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           Manage your account, connections, and preferences
         </p>
       </div>

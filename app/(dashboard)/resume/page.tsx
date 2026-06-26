@@ -14,7 +14,7 @@ const ResumeViewer = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex flex-col md:flex-row h-full min-h-[calc(100vh-4rem)]">
-        <div className="w-full md:w-[280px] border-r border-zinc-800 p-4 space-y-3">
+        <div className="w-full md:w-[280px] border-r border-border p-4 space-y-3">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-16 rounded-lg" />
           ))}
@@ -58,12 +58,12 @@ export default async function ResumePage() {
 
   return (
     <div className="h-full pb-20 md:pb-0">
-      <div className="px-4 sm:px-6 py-4 border-b border-zinc-800">
-        <h1 className="text-lg font-semibold text-white">Resume</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">
+      <div className="px-4 sm:px-6 py-4 border-b border-border">
+        <h1 className="text-lg font-semibold text-foreground">Resume</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
           {versions.length > 0
-            ? `${versions.length} version${versions.length !== 1 ? "s" : ""} tracked — AI updates automatically on new achievements`
-            : "Upload or build your resume to start tracking versions"}
+             ? `${versions.length} version${versions.length !== 1 ? "s" : ""} tracked — AI updates automatically on new achievements`
+             : "Upload or build your resume to start tracking versions"}
         </p>
       </div>
 
