@@ -16,6 +16,7 @@ import { draftLinkedInPost, draftXPost } from "@/lib/ai/draft-post";
 import { addBulletToResume, buildResumeFromData } from "@/lib/resume/builder";
 import { sendEmail } from "@/lib/email/send";
 import { AchievementCompleteEmail } from "@/lib/email/templates";
+import { checkMediaRelevance } from "@/lib/ai/check-media";
 
 // ---------------------------------------------------------------------------
 // Singleton receiver (signing keys never change at runtime)
@@ -228,8 +229,46 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logStep("Step 4: User fetch failed (non-fatal), continuing without voice profile", pipelineStart);
   }
 
-  // ─── Step 5: Draft LinkedIn post ─────────────────────────────────────────
-  logStep("Step 5: Drafting LinkedIn post", pipelineStart);
+  // ─── Step 5: Check uploaded media relevance (images only) ──────────────────
+  logStep("Step 5: Checking uploaded media", pipelineStart);
+
+  // mediaPromptOverride replaces the AI-generated image suggestion in the
+  // LinkedIn post when the user has already uploaded a real image.
+  // PDFs are skipped here — they're offered as downloadable references in the
+  // post review UI (LinkedIn Images API only accepts jpg/png).
+  let mediaPromptOverride: string | null = null;
+
+  if (achievement.mediaUrl && achievement.mediaType === "image") {
+    try {
+      const mediaCheck = await checkMediaRelevance({
+        imageUrl: achievement.mediaUrl,
+        achievementText: achievement.rawInput,
+      });
+      if (mediaCheck.isRelevant) {
+        mediaPromptOverride = mediaCheck.suggestedUse;
+        console.log(
+          `[qstash] Media check passed — suggestedUse: ${mediaCheck.suggestedUse}`
+        );
+      } else {
+        console.log(
+          `[qstash] Media check: image not relevant — ${mediaCheck.description}`
+        );
+      }
+    } catch (mediaErr) {
+      // Non-fatal — pipeline continues without the media check result
+      console.error("[qstash] Media relevance check failed (non-fatal):", mediaErr);
+    }
+  } else if (achievement.mediaUrl && achievement.mediaType === "pdf") {
+    // PDF certificates: set a reference string so the post review UI can
+    // surface a "download certificate" link — no vision analysis needed.
+    mediaPromptOverride = `PDF certificate attached: ${achievement.mediaUrl}`;
+    console.log("[qstash] PDF certificate noted for post review UI");
+  }
+
+  logStep("Step 5: Media check complete", pipelineStart);
+
+  // ─── Step 6: Draft LinkedIn post ─────────────────────────────────────────
+  logStep("Step 6: Drafting LinkedIn post", pipelineStart);
 
   let linkedinPostId: string | null = null;
 
@@ -248,19 +287,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         platform: "linkedin",
         draftText: linkedInDraft.draftText,
         hashtags: linkedInDraft.hashtags,
-        mediaPrompt: linkedInDraft.mediaPrompt,
+        // If the user uploaded a real image, use the vision-confirmed prompt;
+        // otherwise fall back to the AI-generated image suggestion.
+        mediaPrompt: mediaPromptOverride ?? linkedInDraft.mediaPrompt,
         status: "draft",
       })
       .returning({ id: posts.id });
 
     linkedinPostId = insertedPost?.id ?? null;
-    logStep("Step 5: LinkedIn post drafted", pipelineStart);
+    logStep("Step 6: LinkedIn post drafted", pipelineStart);
   } catch (linkedinErr) {
     console.error("[qstash] LinkedIn draft failed:", linkedinErr);
   }
 
-  // ─── Step 6: Draft X post ────────────────────────────────────────────────
-  logStep("Step 6: Drafting X post", pipelineStart);
+  // ─── Step 7: Draft X post ────────────────────────────────────────────────
+  logStep("Step 7: Drafting X post", pipelineStart);
 
   try {
     const xDraft = await draftXPost({
@@ -277,13 +318,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       status: "draft",
     });
 
-    logStep("Step 6: X post drafted", pipelineStart);
+    logStep("Step 7: X post drafted", pipelineStart);
   } catch (xErr) {
     console.error("[qstash] X draft failed:", xErr);
   }
 
-  // ─── Step 7: Resume update ───────────────────────────────────────────────
-  logStep("Step 7: Updating resume", pipelineStart);
+  // ─── Step 8: Resume update ───────────────────────────────────────────────
+  logStep("Step 8: Updating resume", pipelineStart);
 
   let resumeUpdated = false;
 
@@ -365,18 +406,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ─── Step 8: Mark complete ───────────────────────────────────────────────
-  logStep("Step 8: Marking achievement complete", pipelineStart);
+  // ─── Step 9: Mark complete ───────────────────────────────────────────────
+  logStep("Step 9: Marking achievement complete", pipelineStart);
 
   await db
     .update(achievements)
     .set({ status: "complete" })
     .where(eq(achievements.id, achievementId));
 
-  logStep("Step 8: Achievement marked complete", pipelineStart);
+  logStep("Step 9: Achievement marked complete", pipelineStart);
 
-  // ─── Step 9: Send completion email ───────────────────────────────────────
-  logStep("Step 9: Sending completion email", pipelineStart);
+  // ─── Step 10: Send completion email ──────────────────────────────────────
+  logStep("Step 10: Sending completion email", pipelineStart);
 
   if (user?.email) {
     try {
@@ -398,7 +439,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }),
       }).catch((err) => console.error("[email] Failed to send email", err));
 
-      logStep("Step 9: Email sent", pipelineStart);
+      logStep("Step 10: Email sent", pipelineStart);
     } catch (emailErr) {
       // Email is non-fatal — never block the 200 response
       console.error("[qstash] Email send failed:", emailErr);
