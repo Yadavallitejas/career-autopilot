@@ -5,40 +5,83 @@ import { users, posts, achievements, connectedAccounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
-// LinkedIn UGC Post API
-// Ref: https://learn.microsoft.com/en-us/linkedin/marketing/integrations/community-management/shares/ugc-post-api
+// LinkedIn Posts API (replaces deprecated /v2/ugcPosts)
+// Ref: https://learn.microsoft.com/en-us/linkedin/marketing/integrations/community-management/shares/posts-api
+// NOTE: LINKEDIN_VERSION must be a current YYYYMM value. LinkedIn versions
+//       expire roughly 12 months after release. If you receive a 400 with
+//       "Invalid API Version", update this constant to the current month.
 // ---------------------------------------------------------------------------
 
-const LINKEDIN_UGC_URL = "https://api.linkedin.com/v2/ugcPosts";
+const LINKEDIN_VERSION = "202506"; // update to YYYYMM of the current month if expired
 
-interface LinkedInUGCPostBody {
-  author: string; // urn:li:person:{personId}
-  lifecycleState: "PUBLISHED";
-  specificContent: {
-    "com.linkedin.ugc.ShareContent": {
-      shareCommentary: { text: string };
-      shareMediaCategory: "NONE" | "IMAGE" | "ARTICLE";
-      media?: {
-        status: "READY";
-        description: { text: string };
-        media: string; // urn:li:digitalmediaAsset:{assetId}
-        title?: { text: string };
-      }[];
-    };
-  };
-  visibility: {
-    "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC";
-  };
-}
+// ---------------------------------------------------------------------------
+// Image upload helper — LinkedIn Images API (two-step: init → binary PUT)
+// Ref: https://learn.microsoft.com/en-us/linkedin/marketing/integrations/community-management/shares/images-api
+// ---------------------------------------------------------------------------
 
-async function getLinkedInPersonUrn(token: string): Promise<string | null> {
-  const res = await fetch("https://api.linkedin.com/v2/me", {
-    headers: { Authorization: `Bearer ${token}` },
+async function uploadImageToLinkedIn(
+  imageUrl: string,
+  personUrn: string,
+  accessToken: string
+): Promise<string> {
+  const commonHeaders = {
+    Authorization: `Bearer ${accessToken}`,
+    "LinkedIn-Version": LINKEDIN_VERSION,
+    "X-Restli-Protocol-Version": "2.0.0",
+  };
+
+  // Step 1: Initialize the upload to obtain an upload URL and image URN
+  const initRes = await fetch(
+    "https://api.linkedin.com/rest/images?action=initializeUpload",
+    {
+      method: "POST",
+      headers: { ...commonHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initializeUploadRequest: { owner: personUrn },
+      }),
+      cache: "no-store",
+    }
+  );
+
+  const initData = (await initRes.json()) as {
+    value?: { uploadUrl: string; image: string };
+  };
+
+  if (!initRes.ok) {
+    throw new Error(
+      `LinkedIn image init failed (${initRes.status}): ${JSON.stringify(initData)}`
+    );
+  }
+
+  const { uploadUrl, image: imageUrn } = initData.value!;
+
+  // Step 2: Download our hosted image then stream the bytes to LinkedIn
+  const imageResponse = await fetch(imageUrl);
+  if (!imageResponse.ok) {
+    throw new Error(
+      `Failed to fetch source image for upload (${imageResponse.status})`
+    );
+  }
+  const imageBuffer = await imageResponse.arrayBuffer();
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      // Content-Type must NOT be set; LinkedIn's signed URL handles it
+    },
+    body: imageBuffer,
     cache: "no-store",
   });
-  if (!res.ok) return null;
-  const data = (await res.json()) as { id?: string };
-  return data.id ? `urn:li:person:${data.id}` : null;
+
+  if (!uploadRes.ok) {
+    throw new Error(
+      `LinkedIn image binary upload failed (${uploadRes.status})`
+    );
+  }
+
+  // imageUrn looks like "urn:li:image:C5610AQ..."
+  return imageUrn;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,14 +118,18 @@ export async function POST(
     );
   }
 
-  // ── Ownership check ───────────────────────────────────────────────────────
+  // ── Ownership check (also fetches achievement media metadata) ─────────────
   const [row] = await db
-    .select({ post: posts })
+    .select({
+      post: posts,
+      achievement: {
+        mediaUrl: achievements.mediaUrl,
+        mediaType: achievements.mediaType,
+      },
+    })
     .from(posts)
     .innerJoin(achievements, eq(posts.achievementId, achievements.id))
-    .where(
-      and(eq(posts.id, params.id), eq(achievements.userId, user.id))
-    )
+    .where(and(eq(posts.id, params.id), eq(achievements.userId, user.id)))
     .limit(1);
 
   if (!row) {
@@ -116,7 +163,10 @@ export async function POST(
 
   // ── Get LinkedIn token ────────────────────────────────────────────────────
   const [liAccount] = await db
-    .select({ accessToken: connectedAccounts.accessToken, platformUserId: connectedAccounts.platformUserId })
+    .select({
+      accessToken: connectedAccounts.accessToken,
+      platformUserId: connectedAccounts.platformUserId,
+    })
     .from(connectedAccounts)
     .where(
       and(
@@ -140,7 +190,7 @@ export async function POST(
   try {
     const { decrypt } = await import("@/lib/encryption");
     decryptedToken = decrypt(liAccount.accessToken);
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       {
         error: "Failed to decrypt token. Please reconnect your account.",
@@ -151,7 +201,7 @@ export async function POST(
   }
 
   // ── Compose post text ─────────────────────────────────────────────────────
-  const postBody =
+  const commentary =
     hashtags.length > 0
       ? `${finalText}\n\n${hashtags.map((h) => `#${h}`).join(" ")}`
       : finalText;
@@ -161,18 +211,29 @@ export async function POST(
   if (liAccount.platformUserId) {
     authorUrn = `urn:li:person:${liAccount.platformUserId}`;
   } else {
-    const resolved = await getLinkedInPersonUrn(decryptedToken);
-    if (!resolved) {
+    // Fall back to fetching the profile from LinkedIn
+    const meRes = await fetch("https://api.linkedin.com/v2/me", {
+      headers: { Authorization: `Bearer ${decryptedToken}` },
+      cache: "no-store",
+    });
+    if (!meRes.ok) {
       return NextResponse.json(
         { error: "LinkedIn token expired — please reconnect", reconnect: true },
         { status: 401 }
       );
     }
-    authorUrn = resolved;
-    // Cache the resolved person ID
+    const meData = (await meRes.json()) as { id?: string };
+    if (!meData.id) {
+      return NextResponse.json(
+        { error: "LinkedIn token expired — please reconnect", reconnect: true },
+        { status: 401 }
+      );
+    }
+    authorUrn = `urn:li:person:${meData.id}`;
+    // Cache the resolved person ID for future calls
     await db
       .update(connectedAccounts)
-      .set({ platformUserId: authorUrn.replace("urn:li:person:", "") })
+      .set({ platformUserId: meData.id })
       .where(
         and(
           eq(connectedAccounts.userId, user.id),
@@ -182,38 +243,67 @@ export async function POST(
       .catch(() => {}); // non-fatal
   }
 
-  // ── Build UGC payload ─────────────────────────────────────────────────────
-  const ugcPayload: LinkedInUGCPostBody = {
+  // ── Upload image (if any) ─────────────────────────────────────────────────
+  // Prefer the achievement's stored media; fall back to the request body's URL
+  const imageSourceUrl =
+    (row.achievement.mediaType === "image" && row.achievement.mediaUrl) ||
+    mediaUrl ||
+    null;
+
+  let mediaBlock: Record<string, unknown> = {};
+  if (imageSourceUrl) {
+    try {
+      const imageUrn = await uploadImageToLinkedIn(
+        imageSourceUrl,
+        authorUrn,
+        decryptedToken
+      );
+      mediaBlock = {
+        content: {
+          media: {
+            id: imageUrn,
+            altText: "Achievement proof",
+          },
+        },
+      };
+    } catch (imgErr) {
+      console.error("[LinkedIn Publish] Image upload failed:", imgErr);
+      // Non-fatal — publish as text-only rather than aborting the post
+    }
+  }
+
+  // ── Build Posts API payload ───────────────────────────────────────────────
+  const postPayload = {
     author: authorUrn,
+    commentary,
+    visibility: "PUBLIC",
+    distribution: { feedDistribution: "MAIN_FEED" },
     lifecycleState: "PUBLISHED",
-    specificContent: {
-      "com.linkedin.ugc.ShareContent": {
-        shareCommentary: { text: postBody },
-        shareMediaCategory: "NONE",
-      },
-    },
-    visibility: {
-      "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-    },
+    isReshareDisabledByAuthor: false,
+    ...mediaBlock,
   };
 
-  // ── Call LinkedIn API ─────────────────────────────────────────────────────
+  // ── Call LinkedIn Posts API ───────────────────────────────────────────────
   let liResponse: Response;
   try {
-    liResponse = await fetch(LINKEDIN_UGC_URL, {
+    liResponse = await fetch("https://api.linkedin.com/rest/posts", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${decryptedToken}`,
-        "Content-Type": "application/json",
+        "LinkedIn-Version": LINKEDIN_VERSION,
         "X-Restli-Protocol-Version": "2.0.0",
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(ugcPayload),
+      body: JSON.stringify(postPayload),
       cache: "no-store",
     });
   } catch (netErr) {
     await db
       .update(posts)
-      .set({ status: "failed", errorMessage: "Network error contacting LinkedIn" })
+      .set({
+        status: "failed",
+        errorMessage: "Network error contacting LinkedIn",
+      })
       .where(eq(posts.id, params.id));
     return NextResponse.json(
       { error: "Network error — LinkedIn unreachable" },
@@ -225,36 +315,48 @@ export async function POST(
   if (liResponse.status === 401 || liResponse.status === 403) {
     await db
       .update(posts)
-      .set({ status: "failed", errorMessage: "LinkedIn token expired or insufficient scope" })
+      .set({
+        status: "failed",
+        errorMessage: "LinkedIn token expired or insufficient scope",
+      })
       .where(eq(posts.id, params.id));
     return NextResponse.json(
-      { error: "LinkedIn token expired — please reconnect your account", reconnect: true },
+      {
+        error: "LinkedIn token expired — please reconnect your account",
+        reconnect: true,
+      },
       { status: 401 }
     );
   }
 
-  if (liResponse.status !== 201) {
+  if (!liResponse.ok) {
+    let errDetail: unknown;
     let errMsg = `LinkedIn API error (${liResponse.status})`;
     try {
-      const errBody = (await liResponse.json()) as { message?: string };
-      if (errBody.message) errMsg = errBody.message;
+      errDetail = await liResponse.json();
+      const detail = errDetail as { message?: string };
+      if (detail.message) errMsg = detail.message;
     } catch {}
 
+    console.error("[LinkedIn Publish] Failed:", errDetail);
     await db
       .update(posts)
       .set({ status: "failed", errorMessage: errMsg })
       .where(eq(posts.id, params.id));
 
-    return NextResponse.json({ error: errMsg }, { status: 502 });
+    return NextResponse.json(
+      { error: "LinkedIn rejected the post", details: errDetail },
+      { status: 502 }
+    );
   }
 
   // ── Success ───────────────────────────────────────────────────────────────
-  // LinkedIn returns the URN in X-RestLi-Id header: urn:li:ugcPost:{id}
-  const postUrn = liResponse.headers.get("X-RestLi-Id") ?? "";
-  const postId = postUrn.split(":").pop() ?? "";
+  // LinkedIn returns the post URN in the x-restli-id header
+  // e.g. "urn:li:share:7..." or "urn:li:ugcPost:..." (both work for the feed URL)
+  const postId = liResponse.headers.get("x-restli-id") ?? "";
   const publishedUrl = postId
-    ? `https://www.linkedin.com/feed/update/${postUrn}/`
-    : `https://www.linkedin.com/`;
+    ? `https://www.linkedin.com/feed/update/${postId}/`
+    : "https://www.linkedin.com/";
 
   await db
     .update(posts)
@@ -263,12 +365,12 @@ export async function POST(
       publishedUrl,
       publishedAt: new Date(),
       errorMessage: null,
-      // also persist the final edited text
+      // Persist the final edited text
       draftText: finalText,
       hashtags,
       ...(mediaUrl ? { mediaUrls: [mediaUrl] } : {}),
     })
     .where(eq(posts.id, params.id));
 
-  return NextResponse.json({ publishedUrl, status: "published" });
+  return NextResponse.json({ success: true, postId, publishedUrl });
 }

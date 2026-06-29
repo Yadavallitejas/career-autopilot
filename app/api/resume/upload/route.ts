@@ -12,6 +12,7 @@ import { users, resumeVersions } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getStorageClient } from '@/lib/storage/client'
 import { extractTextFromPdf, extractTextFromDocx } from '@/lib/resume/extract-text'
+import { structurizeResumeText } from '@/lib/resume/structurize'
 
 const ALLOWED_TYPES = new Set([
   'application/pdf',
@@ -121,8 +122,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // Non-fatal — we have the text, proceed without a stored file URL
     }
 
-        // 10. Persist to DB — mark existing current as stale, insert new version
-    // Store the storagePath in fileUrl
+    // 10. AI-extract structured data (non-fatal — upload always succeeds)
+    let structuredData: object | null = null
+    try {
+      structuredData = await structurizeResumeText(rawText)
+    } catch (structErr) {
+      console.error(
+        '[Resume Upload] Structurize failed, continuing without it:',
+        structErr
+      )
+      // structuredData stays null; portfolio-from-resume will surface a
+      // clear error asking the user to re-upload or build from scratch.
+    }
+
+    // 11. Persist to DB — mark existing current as stale, insert new version
     const [newVersion] = await db.transaction(async (tx) => {
       await tx
         .update(resumeVersions)
@@ -143,6 +156,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           rawText: rawText.slice(0, 200_000), // cap at 200k chars
           isCurrent: true,
           changesSummary: `Uploaded ${file.name} (${(file.size / 1024).toFixed(0)} KB)`,
+          structuredData,
         })
         .returning()
 

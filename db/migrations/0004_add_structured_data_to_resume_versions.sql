@@ -1,0 +1,1 @@
+ALTER TABLE "resume_versions" ADD COLUMN "structured_data" jsonb;

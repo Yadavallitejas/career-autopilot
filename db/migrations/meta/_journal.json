@@ -29,6 +29,13 @@
       "when": 1782718772545,
       "tag": "0003_glorious_outlaw_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782743539010,
+      "tag": "0004_add_structured_data_to_resume_versions",
+      "breakpoints": true
     }
   ]
 }

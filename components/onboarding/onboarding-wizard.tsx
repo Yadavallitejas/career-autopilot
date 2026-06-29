@@ -401,8 +401,15 @@ function Step2Resume({
     currentRole: "", currentCompany: "", university: "", degree: "", gradYear: "",
     skills: [], skillInput: "", certifications: "",
   });
-  const [scratchStep, setScratchStep] = useState(1);
+  // Step 0 = template picker, steps 1-5 = form sections
+  const [scratchStep, setScratchStep] = useState(0);
+  const [selectedTemplate, setSelectedTemplate] = useState<"classic" | "modern">("classic");
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const TEMPLATES = [
+    { id: "classic" as const, name: "Classic", description: "Single column, ATS-optimized" },
+    { id: "modern" as const, name: "Modern", description: "Two-column with sidebar" },
+  ];
 
   async function handleFile(file: File) {
     setUploadError(null);
@@ -442,14 +449,50 @@ function Step2Resume({
 
   async function handleGenerateFromScratch() {
     setIsGenerating(true);
+    setUploadError(null);
     try {
+      // Build the payload in the shape the Zod schema expects
+      const payload = {
+        fullName: scratch.name,
+        email: scratch.email,
+        phone: scratch.phone || undefined,
+        location: scratch.location || undefined,
+        linkedinUrl: scratch.linkedin || undefined,
+        githubUrl: scratch.github || undefined,
+        templateId: selectedTemplate,
+        experience: scratch.currentRole
+          ? [{
+              company: scratch.currentCompany || "—",
+              title: scratch.currentRole,
+              startDate: new Date().getFullYear().toString(),
+              bullets: [],
+            }]
+          : [],
+        education: scratch.university
+          ? [{
+              institution: scratch.university,
+              degree: scratch.degree || "Degree",
+              graduationYear: scratch.gradYear || new Date().getFullYear().toString(),
+            }]
+          : [],
+        certifications: [],
+        projects: [],
+        skills: scratch.skills,
+      };
+
       const res = await fetch("/api/resume/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(scratch),
+        body: JSON.stringify(payload),
       });
-      if (res.ok) onScratchComplete();
-      else setUploadError("Generation failed — please try again.");
+
+      const json = await res.json() as { error?: string; details?: string[] };
+      if (res.ok) {
+        onScratchComplete();
+      } else {
+        const msg = json.details?.join("; ") ?? json.error ?? "Generation failed — please try again.";
+        setUploadError(msg);
+      }
     } catch {
       setUploadError("Network error — please try again.");
     } finally {
@@ -593,15 +636,15 @@ function Step2Resume({
       {mode === "scratch" && (
         <div className="space-y-6">
           <button
-            onClick={() => { setMode(null); setScratchStep(1); }}
+            onClick={() => { setMode(null); setScratchStep(0); }}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             ← Back
           </button>
 
-          {/* Progress within scratch */}
+          {/* Progress within scratch — step 0 is template, 1-5 are form sections */}
           <div className="flex gap-2">
-            {[1,2,3,4,5].map((s) => (
+            {[0,1,2,3,4,5].map((s) => (
               <div
                 key={s}
                 className={cn(
@@ -611,6 +654,33 @@ function Step2Resume({
               />
             ))}
           </div>
+
+          {/* Step 0: Template picker */}
+          {scratchStep === 0 && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Choose a template</h3>
+                <p className="text-xs text-muted-foreground mt-1">Pick the layout for your generated PDF.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTemplate(t.id)}
+                    className={cn(
+                      "border rounded-lg p-4 text-left transition-colors",
+                      selectedTemplate === t.id
+                        ? "border-emerald-500 bg-emerald-500/10"
+                        : "border-border hover:bg-muted"
+                    )}
+                  >
+                    <div className="font-medium text-sm text-foreground">{t.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{t.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Section 1: Contact */}
           {scratchStep === 1 && (
@@ -757,7 +827,7 @@ function Step2Resume({
 
           {/* Scratch navigation */}
           <div className="flex gap-3 pt-2">
-            {scratchStep > 1 && (
+            {scratchStep > 0 && (
               <button
                 onClick={() => setScratchStep((s) => s - 1)}
                 className="px-4 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground transition-colors"

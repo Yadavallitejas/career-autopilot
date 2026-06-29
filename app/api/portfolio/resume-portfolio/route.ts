@@ -1,11 +1,15 @@
 /**
  * POST /api/portfolio/resume-portfolio
  *
- * Generates a static HTML portfolio from the user's resume data + recent
- * achievements and uploads it to Supabase Storage.
+ * Generates a static HTML portfolio from the user's AI-structured resume data
+ * + recent achievements and uploads it to the Supabase 'portfolios' bucket.
  *
  * Body: { template?: 'minimal' | 'developer' | 'creative' }
  * Returns: { url: string }
+ *
+ * Prerequisites:
+ *   - Supabase Storage bucket 'portfolios' must exist and be set to Public.
+ *     Dashboard → Storage → New bucket → name: portfolios, Public: ON
  */
 export const runtime = 'nodejs'
 
@@ -24,6 +28,7 @@ import {
   type ResumePortfolioData,
   type PortfolioTemplate,
 } from '@/lib/portfolio/generate-from-resume'
+import type { StructuredResumeData } from '@/lib/resume/structurize'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const { userId: clerkId } = auth()
@@ -51,80 +56,126 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Default to minimal
   }
 
-  // Fetch resume + achievements in parallel
-  const [resumeRows, achievementRows] = await Promise.all([
-    db
-      .select()
-      .from(resumeVersions)
-      .where(
-        and(
-          eq(resumeVersions.userId, user.id),
-          eq(resumeVersions.isCurrent, true)
-        )
+  // ── Fetch current resume ─────────────────────────────────────────────────
+  const [currentResume] = await db
+    .select()
+    .from(resumeVersions)
+    .where(
+      and(
+        eq(resumeVersions.userId, user.id),
+        eq(resumeVersions.isCurrent, true)
       )
-      .limit(1),
-    db
-      .select({
-        achievementType: achievementsTable.achievementType,
-        resumeBullet: achievementsTable.resumeBullet,
-        createdAt: achievementsTable.createdAt,
-      })
-      .from(achievementsTable)
-      .where(
-        and(
-          eq(achievementsTable.userId, user.id),
-          eq(achievementsTable.classifiedResumeWorthy, true)
-        )
-      )
-      .orderBy(desc(achievementsTable.createdAt))
-      .limit(8),
-  ])
+    )
+    .limit(1)
 
+  if (!currentResume) {
+    return NextResponse.json(
+      { error: 'No resume found. Please upload or build a resume first.' },
+      { status: 400 }
+    )
+  }
+
+  if (!currentResume.structuredData) {
+    return NextResponse.json(
+      {
+        error:
+          'Your resume data could not be structured for portfolio generation. ' +
+          'Try re-uploading your resume, or build one from scratch instead.',
+      },
+      { status: 422 }
+    )
+  }
+
+  // ── Fetch recent achievements ─────────────────────────────────────────────
+  const achievementRows = await db
+    .select({
+      achievementType: achievementsTable.achievementType,
+      resumeBullet: achievementsTable.resumeBullet,
+      createdAt: achievementsTable.createdAt,
+    })
+    .from(achievementsTable)
+    .where(
+      and(
+        eq(achievementsTable.userId, user.id),
+        eq(achievementsTable.classifiedResumeWorthy, true)
+      )
+    )
+    .orderBy(desc(achievementsTable.createdAt))
+    .limit(8)
+
+  // ── Map structuredData → ResumePortfolioData ──────────────────────────────
+  const sd = currentResume.structuredData as StructuredResumeData
   const vp = user.voiceProfile as {
     fullName?: string
     jobTitle?: string
     industry?: string
   } | null
 
-  // Parse raw resume text into structured data if available
-  const rawText = resumeRows[0]?.rawText ?? ''
-  const resumeData = parseResumeText(rawText, vp, user.email)
-
-  // Add achievements
-  resumeData.achievements = achievementRows
-    .filter((a) => a.resumeBullet)
-    .map((a) => ({
-      type: a.achievementType ?? 'other',
-      bullet: a.resumeBullet!,
-      date: new Date(a.createdAt).toLocaleDateString('en-IN', {
-        month: 'short',
-        year: 'numeric',
-      }),
-    }))
+  const resumeData: ResumePortfolioData = {
+    // Prefer voiceProfile overrides so the user's edited name/title wins
+    fullName: vp?.fullName ?? sd.fullName ?? user.email.split('@')[0],
+    jobTitle: vp?.jobTitle ?? undefined,
+    email: sd.email ?? user.email,
+    phone: sd.phone ?? undefined,
+    location: sd.location ?? undefined,
+    linkedinUrl: sd.linkedinUrl ?? undefined,
+    githubUrl: sd.githubUrl ?? undefined,
+    summary: sd.summary ?? undefined,
+    skills: sd.skills ?? [],
+    experience: (sd.experience ?? []).map((e) => ({
+      company: e.company,
+      role: e.title,       // structurize uses 'title'; ResumePortfolioData uses 'role'
+      startDate: e.startDate,
+      endDate: e.endDate ?? undefined,
+      bullets: e.bullets,
+    })),
+    education: (sd.education ?? []).map((e) => ({
+      institution: e.institution,
+      degree: e.degree,
+      year: e.graduationYear,
+    })),
+    // certifications in ResumePortfolioData is string[] — flatten to display name
+    certifications: (sd.certifications ?? []).map((c) =>
+      c.url ? `${c.name} — ${c.issuer} (${c.date})` : `${c.name} — ${c.issuer} (${c.date})`
+    ),
+    projects: (sd.projects ?? []).map((p) => ({
+      name: p.name,
+      description: p.description,
+      url: p.url ?? undefined,
+    })),
+    achievements: achievementRows
+      .filter((a) => a.resumeBullet)
+      .map((a) => ({
+        type: a.achievementType ?? 'other',
+        bullet: a.resumeBullet!,
+        date: new Date(a.createdAt).toLocaleDateString('en-IN', {
+          month: 'short',
+          year: 'numeric',
+        }),
+      })),
+  }
 
   if (!resumeData.fullName) {
     return NextResponse.json(
       {
         error:
-          'Please complete your profile or upload a resume before generating a portfolio.',
+          'Could not determine your name from the resume. Please complete your profile or re-upload.',
       },
       { status: 400 }
     )
   }
 
-  // Generate HTML and upload to Supabase
+  // ── Generate HTML and upload to Supabase ──────────────────────────────────
   let publicUrl: string
   try {
     publicUrl = await generatePortfolioFromResume(user.id, resumeData, template)
-  } catch (err) {
-    console.error('[resume-portfolio] Generation failed:', err)
-    return NextResponse.json(
-      { error: 'Portfolio generation failed. Please try again.' },
-      { status: 500 }
-    )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[Portfolio Generation] Failed:', error)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 
-  // Save to portfolio_config so the configured view shows it
+  // ── Save to portfolio_config ───────────────────────────────────────────────
   try {
     await db
       .insert(portfolioConfig)
@@ -151,59 +202,4 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json({ url: publicUrl })
-}
-
-// ---------------------------------------------------------------------------
-// Simple heuristic parser — extracts structure from raw resume text
-// Falls back gracefully when the text is unstructured
-// ---------------------------------------------------------------------------
-
-function parseResumeText(
-  rawText: string,
-  vp: { fullName?: string; jobTitle?: string; industry?: string } | null,
-  email: string
-): ResumePortfolioData {
-  const lines = rawText
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-
-  // Extract skills — look for a "Skills" section or comma-separated lists
-  const skills: string[] = []
-  let inSkills = false
-  for (const line of lines) {
-    if (/^skills?/i.test(line)) { inSkills = true; continue }
-    if (inSkills) {
-      if (/^(experience|education|work|projects|summary|certif)/i.test(line)) {
-        inSkills = false
-        continue
-      }
-      // Split by commas or bullets
-      const parts = line.split(/[,•|·]+/).map((s) => s.trim()).filter(Boolean)
-      skills.push(...parts.slice(0, 20))
-    }
-  }
-
-  // Extract email from text if not from voiceProfile
-  const emailMatch = rawText.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i)
-  const parsedEmail = emailMatch?.[0] ?? email
-
-  // LinkedIn / GitHub
-  const linkedinMatch = rawText.match(/linkedin\.com\/in\/[\w-]+/i)
-  const githubMatch = rawText.match(/github\.com\/[\w-]+/i)
-
-  return {
-    fullName: vp?.fullName ?? lines[0] ?? email.split('@')[0],
-    jobTitle: vp?.jobTitle ?? undefined,
-    email: parsedEmail,
-    linkedinUrl: linkedinMatch ? `https://${linkedinMatch[0]}` : undefined,
-    githubUrl: githubMatch ? `https://${githubMatch[0]}` : undefined,
-    summary: undefined, // Could enhance with AI in future
-    skills: [...new Set(skills)].slice(0, 25),
-    experience: [],
-    education: [],
-    certifications: [],
-    projects: [],
-    achievements: [],
-  }
 }

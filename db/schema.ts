@@ -137,6 +137,8 @@ export const resumeVersions = pgTable(
     rawText: text("raw_text").notNull(),
     isCurrent: boolean("is_current").notNull().default(false),
     changesSummary: text("changes_summary"),
+    /** AI-extracted structured fields cached at upload time. */
+    structuredData: jsonb("structured_data"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => ({

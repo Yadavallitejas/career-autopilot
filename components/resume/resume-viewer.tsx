@@ -172,11 +172,19 @@ function DiffModal({
 // Build-from-scratch modal (multi-step form)
 // ---------------------------------------------------------------------------
 
-type BuildStep = "basic" | "experience" | "education" | "skills" | "done";
+type BuildStep = "template" | "basic" | "experience" | "education" | "skills" | "done";
 
 function BuildResumeModal({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState<BuildStep>("basic");
+  const [step, setStep] = useState<BuildStep>("template");
   const [isPending, startTransition] = useTransition();
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
+  const [selectedTemplate, setSelectedTemplate] = useState<"classic" | "modern">("classic");
+
+  const TEMPLATES = [
+    { id: "classic" as const, name: "Classic", description: "Single column, ATS-optimized" },
+    { id: "modern" as const, name: "Modern", description: "Two-column with sidebar" },
+  ];
 
   const [basic, setBasic] = useState({
     fullName: "",
@@ -189,10 +197,11 @@ function BuildResumeModal({ onClose }: { onClose: () => void }) {
   const [eduText, setEduText] = useState("");
   const [skillsText, setSkillsText] = useState("");
 
-  const STEPS: BuildStep[] = ["basic", "experience", "education", "skills"];
+  const STEPS: BuildStep[] = ["template", "basic", "experience", "education", "skills"];
   const stepIndex = STEPS.indexOf(step);
 
   async function handleGenerate() {
+    setGenerateError(null);
     startTransition(async () => {
       const resumeData = {
         fullName: basic.fullName,
@@ -200,27 +209,24 @@ function BuildResumeModal({ onClose }: { onClose: () => void }) {
         phone: basic.phone || undefined,
         location: basic.location || undefined,
         summary: basic.summary || undefined,
+        templateId: selectedTemplate,
         experience: expText
-          ? [
-              {
-                company: "See summary",
-                title: "Professional Experience",
-                startDate: "2020",
-                bullets: expText
-                  .split("\n")
-                  .map((l) => l.trim())
-                  .filter(Boolean),
-              },
-            ]
+          ? [{
+              company: "—",
+              title: "Professional Experience",
+              startDate: new Date().getFullYear().toString(),
+              bullets: expText
+                .split("\n")
+                .map((l) => l.trim())
+                .filter(Boolean),
+            }]
           : [],
         education: eduText
-          ? [
-              {
-                institution: eduText.split("\n")[0] ?? "",
-                degree: eduText.split("\n")[1] ?? "Degree",
-                graduationYear: eduText.split("\n")[2] ?? "",
-              },
-            ]
+          ? [{
+              institution: eduText.split("\n")[0] ?? "",
+              degree: eduText.split("\n")[1] ?? "Degree",
+              graduationYear: eduText.split("\n")[2] ?? new Date().getFullYear().toString(),
+            }]
           : [],
         certifications: [],
         projects: [],
@@ -236,8 +242,12 @@ function BuildResumeModal({ onClose }: { onClose: () => void }) {
         body: JSON.stringify(resumeData),
       });
 
+      const json = await res.json() as { error?: string; details?: string[] };
       if (res.ok) {
         setStep("done");
+      } else {
+        const msg = json.details?.join("; ") ?? json.error ?? "Generation failed — please try again.";
+        setGenerateError(msg);
       }
     });
   }
@@ -305,6 +315,29 @@ function BuildResumeModal({ onClose }: { onClose: () => void }) {
 
         {/* Form body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {step === "template" && (
+            <>
+              <p className="text-xs text-muted-foreground">Pick the layout for your PDF resume.</p>
+              <div className="grid grid-cols-2 gap-3">
+                {TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTemplate(t.id)}
+                    className={cn(
+                      "border rounded-lg p-4 text-left transition-colors",
+                      selectedTemplate === t.id
+                        ? "border-primary bg-accent"
+                        : "border-border hover:bg-muted"
+                    )}
+                  >
+                    <div className="font-medium text-sm text-foreground">{t.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{t.description}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
           {step === "basic" && (
             <>
               {(
@@ -399,46 +432,53 @@ function BuildResumeModal({ onClose }: { onClose: () => void }) {
 
         {/* Footer nav */}
         <div className="flex items-center justify-between px-5 py-4 border-t border-border">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              stepIndex > 0
-                ? setStep(STEPS[stepIndex - 1])
-                : onClose()
-            }
-            className="text-muted-foreground"
-          >
-            {stepIndex === 0 ? "Cancel" : "Back"}
-          </Button>
+          <div className="flex-1">
+            {generateError && (
+              <p className="text-xs text-destructive leading-snug">{generateError}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                stepIndex > 0
+                  ? setStep(STEPS[stepIndex - 1])
+                  : onClose()
+              }
+              className="text-muted-foreground"
+            >
+              {stepIndex === 0 ? "Cancel" : "Back"}
+            </Button>
 
-          {step === "skills" ? (
-            <Button
-              size="sm"
-              onClick={handleGenerate}
-              disabled={isPending || !basic.fullName || !basic.email}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 size={13} className="mr-1.5 animate-spin" />
-                  Generating…
-                </>
-              ) : (
-                "Generate PDF →"
-              )}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => setStep(STEPS[stepIndex + 1])}
-              disabled={step === "basic" && (!basic.fullName || !basic.email)}
-              className="bg-muted hover:bg-muted/80 text-foreground"
-            >
-              Next
-              <ChevronRight size={13} className="ml-1" />
-            </Button>
-          )}
+            {step === "skills" ? (
+              <Button
+                size="sm"
+                onClick={handleGenerate}
+                disabled={isPending || !basic.fullName || !basic.email}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 size={13} className="mr-1.5 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  "Generate PDF →"
+                )}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => setStep(STEPS[stepIndex + 1])}
+                disabled={step === "basic" && (!basic.fullName || !basic.email)}
+                className="bg-muted hover:bg-muted/80 text-foreground"
+              >
+                Next
+                <ChevronRight size={13} className="ml-1" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
