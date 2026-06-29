@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Rocket, AlertTriangle, X } from "lucide-react";
+import { ArrowLeft, Rocket, AlertTriangle, X, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProgressTracker } from "@/components/achievement/progress-tracker";
 import { cn } from "@/lib/utils";
@@ -134,6 +134,10 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
+  // File attachment state
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   // Post-submission state
   const [achievementId, setAchievementId] = useState<string | null>(null);
   const [showTracker, setShowTracker] = useState(false);
@@ -148,6 +152,23 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
       : charCount < MIN_CHARS && charCount > 0
       ? "text-amber-400"
       : "text-muted-foreground";
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    setFile(selected);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (selected && selected.type.startsWith("image/")) {
+      setPreviewUrl(URL.createObjectURL(selected));
+    } else {
+      setPreviewUrl(null);
+    }
+  }
+
+  function clearFile() {
+    setFile(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -164,11 +185,21 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("/api/achievement", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawInput: text }),
-      });
+      let res: Response;
+
+      if (file) {
+        // Send as multipart FormData when a file is attached
+        const formData = new FormData();
+        formData.append("rawInput", text);
+        formData.append("media", file);
+        res = await fetch("/api/achievement", { method: "POST", body: formData });
+      } else {
+        res = await fetch("/api/achievement", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rawInput: text }),
+        });
+      }
 
       if (res.status === 429) {
         // Server-side free tier block
@@ -199,6 +230,7 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
     setAchievementId(null);
     setText("");
     setError(null);
+    clearFile();
     // Focus textarea after reset
     setTimeout(() => textareaRef.current?.focus(), 50);
   }
@@ -312,6 +344,54 @@ export function AchievementForm({ monthlyCount, plan }: AchievementFormProps) {
               disabled={isSubmitting}
               autoFocus
             />
+          </div>
+
+          {/* File attachment */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <Paperclip size={13} />
+              Attach a certificate or photo <span className="text-xs font-normal">(optional)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <label
+                className={cn(
+                  "flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border text-xs font-medium transition-colors",
+                  "border-border bg-muted/40 text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground"
+                )}
+              >
+                <Paperclip size={12} />
+                {file ? file.name : "Choose file"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,application/pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  disabled={isSubmitting}
+                />
+              </label>
+              {file && (
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Remove attachment"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {previewUrl && (
+              <img
+                src={previewUrl}
+                alt="Preview"
+                className="max-h-40 rounded-lg border border-border object-contain"
+              />
+            )}
+            {file && file.type === "application/pdf" && (
+              <p className="text-xs text-muted-foreground">
+                📄 PDF attached: <span className="font-medium text-foreground">{file.name}</span>
+              </p>
+            )}
           </div>
 
           {/* Guidance card */}

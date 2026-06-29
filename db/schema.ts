@@ -83,6 +83,8 @@ export const achievements = pgTable(
     reasoning: text("reasoning"),
     resumeBullet: text("resume_bullet"),
     resumeSection: text("resume_section"),
+    mediaUrl: text("media_url"),
+    mediaType: text("media_type"), // 'image' | 'pdf'
     status: achievementStatusEnum("status").notNull().default("processing"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

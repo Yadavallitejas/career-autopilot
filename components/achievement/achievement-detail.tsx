@@ -348,26 +348,7 @@ export function AchievementDetail({
                     </p>
                   </CardContent>
                 </Card>
-              ) : achievement.classifiedResumeWorthy === false ? (
-                <div className="border border-border rounded-lg p-4 bg-muted/20 space-y-3">
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Resume update was skipped</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">AI score: {resumeScore}/10 (threshold: 7)</div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full border-border text-xs font-bold hover:bg-accent hover:text-foreground"
-                    onClick={() => handleOverride("add_to_resume")}
-                    disabled={isPending}
-                  >
-                    {isPending ? (
-                      <Loader2 size={13} className="animate-spin mr-1.5" />
-                    ) : null}
-                    Add to resume anyway
-                  </Button>
-                </div>
-              ) : (
+              ) : achievement.classifiedResumeWorthy === true ? (
                 <div className="border border-emerald-500/20 rounded-lg p-4 bg-emerald-500/5 space-y-3">
                   <div>
                     <div className="text-xs text-emerald-400 font-semibold uppercase tracking-wider mb-1">Added to resume</div>
@@ -391,6 +372,25 @@ export function AchievementDetail({
                       <Loader2 size={13} className="animate-spin mr-1.5" />
                     ) : null}
                     Remove from resume
+                  </Button>
+                </div>
+              ) : (
+                <div className="border border-border rounded-lg p-4 bg-muted/20 space-y-3">
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Resume update was skipped</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">AI score: {resumeScore}/10 (threshold: 7)</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full border-border text-xs font-bold hover:bg-accent hover:text-foreground"
+                    onClick={() => handleOverride("add_to_resume")}
+                    disabled={isPending}
+                  >
+                    {isPending ? (
+                      <Loader2 size={13} className="animate-spin mr-1.5" />
+                    ) : null}
+                    Add to resume anyway
                   </Button>
                 </div>
               )}

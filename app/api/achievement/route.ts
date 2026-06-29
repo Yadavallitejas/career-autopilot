@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { achievements, users } from "@/db/schema";
 import { eq, gte, and, sql } from "drizzle-orm";
 import { enqueueAchievementJob } from "@/lib/queue/qstash";
+import { uploadFile } from "@/lib/storage/client";
 
 // ---------------------------------------------------------------------------
 // Validation schema
@@ -46,15 +47,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // 3. Parse + validate body
-    let body: unknown;
+    // 3. Parse + validate body (supports both JSON and multipart/form-data)
+    let rawInput: string;
+    let mediaFile: File | null = null;
+
+    const contentType = req.headers.get("content-type") ?? "";
     try {
-      body = await req.json();
+      if (contentType.includes("multipart/form-data")) {
+        const formData = await req.formData();
+        rawInput = formData.get("rawInput") as string;
+        mediaFile = (formData.get("media") as File | null) ?? null;
+        // Treat empty File objects as null
+        if (mediaFile && mediaFile.size === 0) mediaFile = null;
+      } else {
+        const body = await req.json();
+        rawInput = body.rawInput;
+      }
     } catch {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    const parsed = createAchievementSchema.safeParse(body);
+    const parsed = createAchievementSchema.safeParse({ rawInput });
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.errors[0]?.message ?? "Validation failed" },
@@ -62,7 +75,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const { rawInput } = parsed.data;
+    ({ rawInput } = parsed.data);
 
     // 4. Free tier check
     if (user.plan === "free") {
@@ -97,12 +110,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     }
 
-    // 5. Insert achievement record
+    // 5. Upload attached media (non-fatal — achievement is created even if upload fails)
+    let mediaUrl: string | null = null;
+    let mediaType: string | null = null;
+
+    if (mediaFile) {
+      try {
+        const ext = mediaFile.type === "application/pdf" ? "pdf" : "jpg";
+        const path = `achievements/${user.id}/${Date.now()}.${ext}`;
+        const buffer = Buffer.from(await mediaFile.arrayBuffer());
+        mediaUrl = await uploadFile("post-media", path, buffer, mediaFile.type);
+        mediaType = mediaFile.type === "application/pdf" ? "pdf" : "image";
+        console.log(`[achievement] Media uploaded: ${mediaUrl}`);
+      } catch (uploadErr) {
+        // Non-fatal — log and continue without media rather than blocking
+        console.error("[achievement] Media upload failed (non-fatal):", uploadErr);
+      }
+    }
+
+    // 6. Insert achievement record
     const [achievement] = await db
       .insert(achievements)
       .values({
         userId: user.id,
         rawInput,
+        ...(mediaUrl ? { mediaUrl, mediaType } : {}),
         status: "processing",
       })
       .returning({ id: achievements.id });
@@ -111,7 +143,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       throw new Error("Failed to insert achievement record");
     }
 
-    // 6. Enqueue AI pipeline job via QStash
+    // 7. Enqueue AI pipeline job via QStash
     try {
       const messageId = await enqueueAchievementJob({
         achievementId: achievement.id,
@@ -129,7 +161,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // 7. Return 201 with the new achievement ID
+    // 8. Return 201 with the new achievement ID
     return NextResponse.json(
       { achievementId: achievement.id, status: "processing" },
       { status: 201 }
