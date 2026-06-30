@@ -4,6 +4,8 @@ export default function SignUpPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-950">
       <SignUp
+        fallbackRedirectUrl="/onboarding"
+        signInFallbackRedirectUrl="/dashboard"
         appearance={{
           variables: {
             colorPrimary: "#10b981", // emerald-500
