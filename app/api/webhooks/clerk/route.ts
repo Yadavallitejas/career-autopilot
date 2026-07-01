@@ -90,22 +90,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const { id, email_addresses, primary_email_address_id } = evt.data;
       const email = getPrimaryEmail(email_addresses, primary_email_address_id);
 
-      await db.insert(users).values({
-        clerkId: id,
-        email,
-        plan: "free",
-      });
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          clerkId: id,
+          email,
+          plan: "free",
+          onboardingCompleted: false,
+        })
+        .onConflictDoNothing()
+        .returning();
 
-      // Send Welcome Email
-      sendEmail({
-        to: email,
-        subject: "Welcome to Career Autopilot",
-        react: React.createElement(WelcomeEmail, {
-          userName: email.split("@")[0],
-        }),
-      }).catch((err) => console.error("[email] Failed to send WelcomeEmail", err));
+      if (newUser) {
+        // Send Welcome Email
+        sendEmail({
+          to: email,
+          subject: "Welcome to Career Autopilot",
+          react: React.createElement(WelcomeEmail, {
+            userName: email.split("@")[0],
+          }),
+        }).catch((err) => console.error("[email] Failed to send WelcomeEmail", err));
 
-      console.log(`[clerk-webhook] Created user clerkId=${id}`);
+        console.log(`[clerk-webhook] Created user clerkId=${id}`);
+      } else {
+        console.log(
+          `[clerk-webhook] User clerkId=${id} already exists via self-heal path (skipping welcome email)`
+        );
+      }
     } else if (evt.type === "user.updated") {
       const { id, email_addresses, primary_email_address_id } = evt.data;
       const email = getPrimaryEmail(email_addresses, primary_email_address_id);

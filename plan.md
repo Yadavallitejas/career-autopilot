@@ -15,3 +15,4 @@
    - Go through the list of files obtained from the grep search and replace `process.env.VARIABLE` with `env.VARIABLE`. Use `import { env } from "@/lib/env"` or relative paths. Note that in `next.config.mjs` and `drizzle.config.ts`, and test files, `process.env` might still be used if `lib/env.ts` cannot be safely imported. Specifically focus on `app/api/`, `lib/` and `db/`.
 8. **Pre-commit checks**
    - Ensure proper testing, verifications, reviews and reflections are done by executing `pre_commit_instructions`.
+

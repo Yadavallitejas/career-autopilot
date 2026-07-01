@@ -203,7 +203,7 @@ describe("POST /api/achievement/[id]/override", () => {
     } as any);
 
     const mockUpdatedData = { experience: [{ bullets: ["Engineered scalable serverless endpoints reducing response times."] }] };
-    vi.mocked(addBulletToResume).mockResolvedValue(mockUpdatedData);
+    vi.mocked(addBulletToResume).mockResolvedValue(mockUpdatedData as any);
     vi.mocked(generateResumePdf).mockResolvedValue({
       fileUrl: "http://supabase.com/resume.pdf",
       rawText: JSON.stringify(mockUpdatedData),
