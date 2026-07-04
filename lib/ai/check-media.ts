@@ -1,9 +1,11 @@
 import OpenAI from "openai";
 
-const grok = new OpenAI({
-  apiKey: process.env.XAI_API_KEY!,
-  baseURL: "https://api.x.ai/v1",
-});
+function getGrok() {
+  return new OpenAI({
+    apiKey: process.env.XAI_API_KEY ?? 'not-configured',
+    baseURL: "https://api.x.ai/v1",
+  });
+}
 
 export interface MediaRelevanceResult {
   isRelevant: boolean;
@@ -29,7 +31,7 @@ export async function checkMediaRelevance({
   achievementText: string;
 }): Promise<MediaRelevanceResult> {
   try {
-    const response = await grok.chat.completions.create({
+    const response = await getGrok().chat.completions.create({
       model: "grok-2-vision-1212",
       max_tokens: 300,
       response_format: { type: "json_object" },
