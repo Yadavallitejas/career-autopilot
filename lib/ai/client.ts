@@ -6,18 +6,21 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 // Singleton clients
 // ---------------------------------------------------------------------------
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' })
+function getAnthropic() {
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' })
+}
 
-// Groq uses the OpenAI SDK with a different baseURL — same interface, zero friction
-const groq = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY ?? '',
-  baseURL: 'https://api.groq.com/openai/v1'
-})
+function getGroq() {
+  return new OpenAI({
+    apiKey: process.env.GROQ_API_KEY ?? 'not-configured',
+    baseURL: 'https://api.groq.com/openai/v1'
+  })
+}
 
-// Gemini uses its own SDK
-const geminiClient = process.env.GEMINI_API_KEY 
-  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  : null
+function getGemini() {
+  const key = process.env.GEMINI_API_KEY
+  return key ? new GoogleGenerativeAI(key) : null
+}
 
 // ---------------------------------------------------------------------------
 // Shared types (unchanged)
@@ -50,7 +53,7 @@ export async function callAI({
   // ── 1. Try Anthropic (primary, when key is set) ──────────────────────────
   if (process.env.ANTHROPIC_API_KEY) {
     try {
-      const response = await anthropic.messages.create({
+      const response = await getAnthropic().messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: maxTokens,
         system,
@@ -76,7 +79,7 @@ export async function callAI({
   // ── 2. Try Groq (Llama 3.3 70B — free, OpenAI-compatible) ───────────────
   if (process.env.GROQ_API_KEY) {
     try {
-      const response = await groq.chat.completions.create({
+      const response = await getGroq().chat.completions.create({
         model: 'llama-3.3-70b-versatile',
         max_tokens: maxTokens,
         // Force JSON output when jsonMode is true — eliminates markdown-wrapped JSON failures
@@ -99,6 +102,7 @@ export async function callAI({
   }
 
   // ── 3. Try Gemini 2.5 Flash (free fallback, 1500 req/day) ───────────────
+  const geminiClient = getGemini()
   if (geminiClient && process.env.GEMINI_API_KEY) {
     try {
       const model = geminiClient.getGenerativeModel({
@@ -131,9 +135,9 @@ export async function callAI({
 // Backward-compat getters (kept so existing callers don't break)
 // ---------------------------------------------------------------------------
 
-export function getAnthropicClient(): Anthropic {
+export function getAnthropicClient() {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured')
-  return anthropic
+  return getAnthropic()
 }
 
 // ---------------------------------------------------------------------------
