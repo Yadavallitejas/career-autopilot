@@ -1,76 +1,53 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 // ---------------------------------------------------------------------------
-// Singleton clients — instantiated at module level with process.env directly
-// so they pick up the key at call time rather than at module load, avoiding
-// issues in environments where env vars are injected late.
+// Singleton clients
 // ---------------------------------------------------------------------------
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' })
-const grok = new OpenAI({
-  apiKey: process.env.XAI_API_KEY ?? '',
-  baseURL: 'https://api.x.ai/v1'
+
+// Groq uses the OpenAI SDK with a different baseURL — same interface, zero friction
+const groq = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY ?? '',
+  baseURL: 'https://api.groq.com/openai/v1'
 })
 
-// ---------------------------------------------------------------------------
-// Backward-compat getters (kept so existing callers don't break)
-// ---------------------------------------------------------------------------
-
-export function getAnthropicClient(): Anthropic {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not configured')
-  }
-  return anthropic
-}
-
-export function getXaiClient(): OpenAI {
-  if (!process.env.XAI_API_KEY) {
-    throw new Error('XAI_API_KEY is not configured')
-  }
-  return grok
-}
+// Gemini uses its own SDK
+const geminiClient = process.env.GEMINI_API_KEY 
+  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  : null
 
 // ---------------------------------------------------------------------------
-// Shared types
+// Shared types (unchanged)
 // ---------------------------------------------------------------------------
 
 export type AiMessage = { role: 'user' | 'assistant'; content: string }
-
-// ---------------------------------------------------------------------------
-// callAI — primary interface (system + prompt pair)
-// ---------------------------------------------------------------------------
 
 export interface CallAIOptions {
   system: string
   prompt: string
   maxTokens?: number
-  /** When true, instructs the Grok (and Anthropic where possible) API to return
-   *  valid JSON only — eliminates "model wrapped JSON in prose" failures.
-   *  Set to false (default) for plain-prose responses like the career coach. */
   jsonMode?: boolean
 }
 
-/**
- * Calls Claude Sonnet as primary, falls back to Grok-3-mini on rate-limit /
- * quota / overload errors (429, 402, 529).
- *
- * Any other Anthropic error is re-thrown immediately unless XAI_API_KEY is
- * available, in which case we also fall back to Grok.
- */
+// ---------------------------------------------------------------------------
+// callAI — Anthropic → Groq → Gemini fallback chain
+// ---------------------------------------------------------------------------
+
 export async function callAI({
   system,
   prompt,
   maxTokens = 1000,
   jsonMode = false,
 }: CallAIOptions): Promise<string> {
-  // Guard: if no API keys, fail fast
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.XAI_API_KEY) {
-    console.error('[AI] No API keys configured!')
-    throw new Error('No AI API keys configured. Please set ANTHROPIC_API_KEY.')
+  // Guard: at least one key must be configured
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
+    throw new Error('No AI API keys configured. Add GROQ_API_KEY or GEMINI_API_KEY to your environment.')
   }
 
-  // Try Anthropic
+  // ── 1. Try Anthropic (primary, when key is set) ──────────────────────────
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const response = await anthropic.messages.create({
@@ -84,25 +61,25 @@ export async function callAI({
       console.log('[AI] Anthropic success, tokens:', response.usage.output_tokens)
       return text.text
     } catch (error: unknown) {
-      // Anthropic SDK ≥ 0.20 exposes APIError (with a `status` number property)
       const isRateLimit =
         error instanceof Anthropic.APIError &&
-        [429, 402, 529].includes((error as { status: number }).status);
+        [429, 402, 529].includes((error as { status: number }).status)
       if (isRateLimit) {
-        console.warn('[AI] Anthropic rate limited, falling back to Grok')
+        console.warn('[AI] Anthropic rate limited, trying Groq')
       } else {
         console.error('[AI] Anthropic error:', error)
-        if (!process.env.XAI_API_KEY) throw error
+        // Fall through to Groq regardless — we don't want one bad call to block the pipeline
       }
     }
   }
 
-  // Grok fallback
-  if (process.env.XAI_API_KEY) {
+  // ── 2. Try Groq (Llama 3.3 70B — free, OpenAI-compatible) ───────────────
+  if (process.env.GROQ_API_KEY) {
     try {
-      const response = await grok.chat.completions.create({
-        model: 'grok-4.3',
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
         max_tokens: maxTokens,
+        // Force JSON output when jsonMode is true — eliminates markdown-wrapped JSON failures
         ...(jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
         messages: [
           { role: 'system', content: system },
@@ -110,34 +87,66 @@ export async function callAI({
         ],
       })
       const content = response.choices[0]?.message?.content
-      if (!content) throw new Error('Empty response from Grok')
-      console.log('[AI] Grok fallback success')
+      if (!content) throw new Error('Empty response from Groq')
+      console.log('[AI] Groq success, model: llama-3.3-70b-versatile')
+      // Log first 200 chars so you can see real AI output in Vercel logs
+      console.log('[AI] Groq response preview:', content.slice(0, 200))
       return content
-    } catch (error) {
-      console.error('[AI] Grok also failed:', error)
-      throw error
+    } catch (error: unknown) {
+      console.error('[AI] Groq failed:', error)
+      // Fall through to Gemini
     }
   }
 
-  throw new Error('All AI providers failed or not configured')
+  // ── 3. Try Gemini 2.5 Flash (free fallback, 1500 req/day) ───────────────
+  if (geminiClient && process.env.GEMINI_API_KEY) {
+    try {
+      const model = geminiClient.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          maxOutputTokens: maxTokens,
+          // Tell Gemini to return JSON when jsonMode is true
+          ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
+        },
+      })
+
+      // Gemini doesn't have a separate system role — prepend it to the user prompt
+      const fullPrompt = system ? `${system}\n\n${prompt}` : prompt
+      const result = await model.generateContent(fullPrompt)
+      const text = result.response.text()
+
+      if (!text) throw new Error('Empty response from Gemini')
+      console.log('[AI] Gemini 2.5 Flash success')
+      console.log('[AI] Gemini response preview:', text.slice(0, 200))
+      return text
+    } catch (error) {
+      console.error('[AI] Gemini also failed:', error)
+    }
+  }
+
+  throw new Error('All AI providers failed. Check your API keys and rate limits.')
 }
 
 // ---------------------------------------------------------------------------
-// callAi — legacy multi-turn interface, delegates to callAI
+// Backward-compat getters (kept so existing callers don't break)
+// ---------------------------------------------------------------------------
+
+export function getAnthropicClient(): Anthropic {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured')
+  return anthropic
+}
+
+// ---------------------------------------------------------------------------
+// callAi — legacy multi-turn interface, delegates to callAI (unchanged)
 // ---------------------------------------------------------------------------
 
 export interface AiCallOptions {
   messages: AiMessage[]
   systemPrompt?: string
   maxTokens?: number
-  temperature?: number // accepted but not forwarded (kept for API compat)
+  temperature?: number
 }
 
-/**
- * Multi-turn message interface — wraps callAI.
- * Converts the messages array into a single user prompt by serialising
- * prior turns as context, then passing the last user message as the prompt.
- */
 export async function callAi({
   messages,
   systemPrompt = '',
@@ -145,15 +154,12 @@ export async function callAi({
 }: AiCallOptions): Promise<string> {
   const lastMessage = messages[messages.length - 1]
   const priorContext = messages.slice(0, -1)
-
   const contextBlock =
     priorContext.length > 0
       ? priorContext
           .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
           .join('\n\n') + '\n\n'
       : ''
-
   const prompt = contextBlock + (lastMessage?.content ?? '')
-
   return callAI({ system: systemPrompt, prompt, maxTokens })
 }
