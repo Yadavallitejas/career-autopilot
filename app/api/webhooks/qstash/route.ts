@@ -389,6 +389,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       platform: "x",
       draftText: xDraft.draftText,
       hashtags: xDraft.hashtags,
+      thread: xDraft.thread,
       status: "draft",
     });
 

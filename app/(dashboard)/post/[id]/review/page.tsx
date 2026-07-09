@@ -37,6 +37,15 @@ export default async function PostReviewPage({
 
   if (!row) notFound();
 
+  // Fetch all posts for this achievement to support switching tabs with correct draft texts
+  const achievementPosts = await db
+    .select()
+    .from(posts)
+    .where(eq(posts.achievementId, row.achievement.id));
+
+  const linkedInPost = achievementPosts.find((p) => p.platform === "linkedin");
+  const xPost = achievementPosts.find((p) => p.platform === "x");
+
   const isPro = user.plan === "pro" || user.plan === "team";
 
   return (
@@ -59,6 +68,8 @@ export default async function PostReviewPage({
 
       <PostReviewCard
         post={row.post as Post}
+        linkedInPost={linkedInPost as Post | undefined}
+        xPost={xPost as Post | undefined}
         achievement={row.achievement as Achievement}
         isPro={isPro}
       />

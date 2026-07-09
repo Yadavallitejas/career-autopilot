@@ -76,7 +76,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Post not found" }, { status: 404 });
   }
 
-  let body: { draftText?: string; hashtags?: string[]; mediaUrls?: string[] };
+  let body: { draftText?: string; hashtags?: string[]; mediaUrls?: string[]; thread?: string[] };
   try {
     body = await req.json() as typeof body;
   } catch {
@@ -88,6 +88,7 @@ export async function PATCH(
   if (typeof body.draftText === "string") update.draftText = body.draftText;
   if (Array.isArray(body.hashtags)) update.hashtags = body.hashtags;
   if (Array.isArray(body.mediaUrls)) update.mediaUrls = body.mediaUrls;
+  if (Array.isArray(body.thread)) update.thread = body.thread;
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ success: true }); // nothing to update

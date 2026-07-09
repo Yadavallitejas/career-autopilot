@@ -19,10 +19,14 @@ import {
   Hash,
   AlertTriangle,
   CheckCircle2,
+  CheckCircle,
+  XCircle,
+  FileText,
   Clock,
   Linkedin,
   Twitter,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Post, Achievement } from "@/db/schema";
@@ -33,6 +37,8 @@ import type { Post, Achievement } from "@/db/schema";
 
 interface Props {
   post: Post;
+  linkedInPost?: Post | null;
+  xPost?: Post | null;
   achievement: Achievement;
   isPro: boolean;
 }
@@ -277,27 +283,18 @@ function LinkedInPreview({
 
 function TwitterPreview({
   text,
+  thread = [],
   hashtags,
 }: {
   text: string;
+  thread?: string[];
   hashtags: string[];
 }) {
-  const fullText = `${text}\n\n${hashtags.map((h) => `#${h}`).join(" ")}`;
+  const mainText = hashtags.length > 0
+    ? `${text}\n\n${hashtags.map((h) => `#${h}`).join(" ")}`
+    : text;
 
-  // Thread: split if > 280 chars
-  const LIMIT = 280;
-  const tweets: string[] = [];
-  let remaining = fullText;
-  while (remaining.length > 0) {
-    if (remaining.length <= LIMIT) {
-      tweets.push(remaining);
-      break;
-    }
-    // Break at last space before limit
-    const cut = remaining.lastIndexOf(" ", LIMIT);
-    tweets.push(remaining.slice(0, cut > 0 ? cut : LIMIT));
-    remaining = remaining.slice(cut > 0 ? cut + 1 : LIMIT);
-  }
+  const tweets = [mainText, ...thread];
 
   return (
     <div className="space-y-2">
@@ -515,6 +512,136 @@ function useCopyToClipboard() {
 }
 
 // ---------------------------------------------------------------------------
+// Resume & Portfolio card
+// ---------------------------------------------------------------------------
+
+function ResumePortfolioCard({ achievement }: { achievement: Achievement }) {
+  const router = useRouter();
+  const [isAdding, setIsAdding] = useState(false);
+
+  const {
+    classifiedResumeWorthy,
+    classifiedPortfolioWorthy,
+    resumeScore,
+    portfolioScore,
+    resumeBullet,
+    resumeSection,
+    replaceSuggestion,
+    portfolioReplaceSuggestion,
+  } = achievement;
+
+  // Don't render if classification hasn't run yet
+  if (resumeScore === null && portfolioScore === null && classifiedResumeWorthy === null) {
+    return null;
+  }
+
+  async function handleAddToResume() {
+    setIsAdding(true);
+    try {
+      const res = await fetch(`/api/achievement/${achievement.id}/override`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add_to_resume" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast(err?.error ?? "Failed to add to resume", "error");
+      } else {
+        toast("Added to resume ✓", "success");
+        router.refresh();
+      }
+    } catch {
+      toast("Network error — please try again", "error");
+    } finally {
+      setIsAdding(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-muted/40 p-4 space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        Resume &amp; Portfolio
+      </p>
+
+      {/* Resume section */}
+      {classifiedResumeWorthy ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+            <span className="text-sm text-foreground">
+              Resume: {resumeScore !== null ? `${resumeScore}/10` : "—"}
+            </span>
+          </div>
+          {resumeBullet && (
+            <p className="text-xs text-muted-foreground leading-relaxed bg-muted/60 rounded-lg px-3 py-2 border border-border">
+              &ldquo;{resumeBullet}&rdquo;
+            </p>
+          )}
+          {resumeSection && (
+            <p className="text-[10px] text-muted-foreground/70">
+              Section: <span className="font-medium text-muted-foreground">{resumeSection}</span>
+            </p>
+          )}
+          {replaceSuggestion && (
+            <p className="text-[10px] text-amber-400/80 leading-snug">
+              💡 {replaceSuggestion}
+            </p>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full justify-center gap-1.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 text-xs mt-1"
+            onClick={handleAddToResume}
+            disabled={isAdding}
+          >
+            {isAdding ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <FileText size={12} />
+            )}
+            {isAdding ? "Adding…" : "Add to Resume"}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <XCircle className="h-4 w-4 text-zinc-500 shrink-0" />
+          <span className="text-sm text-muted-foreground">
+            Resume: {resumeScore !== null ? `${resumeScore}/10` : "Not scored"}
+          </span>
+        </div>
+      )}
+
+      {/* Divider */}
+      <div className="border-t border-border" />
+
+      {/* Portfolio section */}
+      {classifiedPortfolioWorthy ? (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-violet-400 shrink-0" />
+            <span className="text-sm text-foreground">
+              Portfolio: {portfolioScore !== null ? `${portfolioScore}/10` : "—"}
+            </span>
+          </div>
+          {portfolioReplaceSuggestion && (
+            <p className="text-[10px] text-amber-400/80 leading-snug">
+              💡 {portfolioReplaceSuggestion}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <XCircle className="h-4 w-4 text-zinc-500 shrink-0" />
+          <span className="text-sm text-muted-foreground">
+            Portfolio: {portfolioScore !== null ? `${portfolioScore}/10` : "Not scored"}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Actions panel (right column)
 // ---------------------------------------------------------------------------
 
@@ -527,6 +654,7 @@ function ActionsPanel({
   isPro,
   saveState,
   onPublish,
+  thread = [],
 }: {
   postId: string;
   postText: string;
@@ -536,9 +664,14 @@ function ActionsPanel({
   isPro: boolean;
   saveState: SaveState;
   onPublish: () => void;
+  thread?: string[];
 }) {
   const { copied, copy } = useCopyToClipboard();
-  const fullText = `${postText}\n\n${hashtags.map((h) => `#${h}`).join(" ")}`;
+  const hashtagsStr = hashtags.length > 0 ? `\n\n${hashtags.map((h) => `#${h}`).join(" ")}` : "";
+  const mainTweet = `${postText}${hashtagsStr}`;
+  const fullText = thread.length > 0
+    ? [mainTweet, ...thread].join("\n\n--- Thread Tweet ---\n\n")
+    : mainTweet;
 
   return (
     <div className="flex flex-col gap-4">
@@ -626,14 +759,35 @@ function ActionsPanel({
 // Main export
 // ---------------------------------------------------------------------------
 
-export function PostReviewCard({ post, achievement, isPro }: Props) {
+export function PostReviewCard({ post, linkedInPost, xPost, achievement, isPro }: Props) {
   const [platform, setPlatform] = useState<"linkedin" | "x">(
     post.platform === "linkedin" ? "linkedin" : "x"
   );
-  const [editedText, setEditedText] = useState(post.draftText);
-  const [editedHashtags, setEditedHashtags] = useState<string[]>(
-    post.hashtags ?? []
+
+  function truncateTo280(text: string): string {
+    if (text.length <= 280) return text;
+    const truncated = text.slice(0, 280);
+    const lastSpace = truncated.lastIndexOf(' ');
+    return lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated;
+  }
+
+  const [linkedInText, setLinkedInText] = useState(
+    linkedInPost?.draftText ?? (post.platform === "linkedin" ? post.draftText : "")
   );
+  const [xText, setXText] = useState(
+    truncateTo280(xPost?.draftText ?? (post.platform === "x" ? post.draftText : ""))
+  );
+  const [threadTweets, setThreadTweets] = useState<string[]>(
+    xPost?.thread ?? (post.platform === "x" ? post.thread : []) ?? []
+  );
+
+  const [linkedInHashtags, setLinkedInHashtags] = useState<string[]>(
+    linkedInPost?.hashtags ?? (post.platform === "linkedin" ? post.hashtags : []) ?? []
+  );
+  const [xHashtags, setXHashtags] = useState<string[]>(
+    xPost?.hashtags ?? (post.platform === "x" ? post.hashtags : []) ?? []
+  );
+
   const [mediaUrl, setMediaUrl] = useState<string | null>(
     (post.mediaUrls ?? [])[0] ?? null
   );
@@ -651,16 +805,16 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scheduleSave = useCallback(
-    (text: string, tags: string[]) => {
+    (postId: string, text: string, tags: string[], thread?: string[]) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       setSaveState("saving");
 
       saveTimerRef.current = setTimeout(async () => {
         try {
-          const res = await fetch(`/api/post/${post.id}`, {
+          const res = await fetch(`/api/post/${postId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ draftText: text, hashtags: tags }),
+            body: JSON.stringify({ draftText: text, hashtags: tags, thread }),
           });
           setSaveState(res.ok ? "saved" : "error");
           setTimeout(() => setSaveState("idle"), 3000);
@@ -670,17 +824,37 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
         }
       }, 2000);
     },
-    [post.id]
+    []
   );
 
-  function handleTextChange(text: string) {
-    setEditedText(text);
-    scheduleSave(text, editedHashtags);
+  function handleLinkedInTextChange(text: string) {
+    setLinkedInText(text);
+    const targetId = linkedInPost?.id ?? post.id;
+    scheduleSave(targetId, text, linkedInHashtags);
   }
 
-  function handleHashtagsChange(tags: string[]) {
-    setEditedHashtags(tags);
-    scheduleSave(editedText, tags);
+  function handleXTextChange(text: string) {
+    setXText(text);
+    const targetId = xPost?.id ?? post.id;
+    scheduleSave(targetId, text, xHashtags, threadTweets);
+  }
+
+  function handleLinkedInHashtagsChange(tags: string[]) {
+    setLinkedInHashtags(tags);
+    const targetId = linkedInPost?.id ?? post.id;
+    scheduleSave(targetId, linkedInText, tags);
+  }
+
+  function handleXHashtagsChange(tags: string[]) {
+    setXHashtags(tags);
+    const targetId = xPost?.id ?? post.id;
+    scheduleSave(targetId, xText, tags, threadTweets);
+  }
+
+  function handleThreadTweetsChange(updated: string[]) {
+    setThreadTweets(updated);
+    const targetId = xPost?.id ?? post.id;
+    scheduleSave(targetId, xText, xHashtags, updated);
   }
 
   // ── Media upload ─────────────────────────────────────────────────────────
@@ -706,12 +880,13 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
   function handlePublishConfirm() {
     startPublish(async () => {
       try {
-        const res = await fetch(`/api/post/${post.id}/publish`, {
+        const targetId = linkedInPost?.id ?? post.id;
+        const res = await fetch(`/api/post/${targetId}/publish`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            finalText: editedText,
-            hashtags: editedHashtags,
+            finalText: linkedInText,
+            hashtags: linkedInHashtags,
             mediaUrl,
           }),
         });
@@ -741,8 +916,7 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const liCharCount = editedText.length + editedHashtags.join(" ").length + editedHashtags.length * 2;
-  const xCharCount = editedText.length;
+  const liCharCount = linkedInText.length + linkedInHashtags.join(" ").length + linkedInHashtags.length * 2;
 
   return (
     <>
@@ -760,8 +934,8 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
       {/* Publish confirm dialog */}
       {showPublishDialog && (
         <PublishDialog
-          text={editedText}
-          hashtags={editedHashtags}
+          text={linkedInText}
+          hashtags={linkedInHashtags}
           onConfirm={handlePublishConfirm}
           onCancel={() => setShowPublishDialog(false)}
           isLoading={isPublishing}
@@ -802,34 +976,93 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
           {/* Preview */}
           {platform === "linkedin" ? (
             <LinkedInPreview
-              text={editedText}
-              hashtags={editedHashtags}
+              text={linkedInText}
+              hashtags={linkedInHashtags}
               mediaUrl={mediaUrl}
             />
           ) : (
-            <TwitterPreview text={editedText} hashtags={editedHashtags} />
+            <TwitterPreview text={xText} thread={threadTweets} hashtags={xHashtags} />
           )}
 
           {/* Edit textarea */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Edit post
-              </label>
-              <CharCount
-                count={platform === "linkedin" ? liCharCount : xCharCount}
-                max={platform === "linkedin" ? 2000 : 280}
-                warn={platform === "linkedin" ? 1500 : 240}
+          {platform === "linkedin" ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Edit post
+                </label>
+                <span className={cn(
+                  "text-sm",
+                  linkedInText.length > 3000 ? "text-red-500 font-medium" :  // Hard limit
+                  linkedInText.length > 1300 ? "text-amber-400" :            // Engagement warning
+                  "text-zinc-400"
+                )}>
+                  {linkedInText.length.toLocaleString()} / 3,000
+                </span>
+              </div>
+              {linkedInText.length > 1300 && linkedInText.length <= 3000 && (
+                <p className="text-xs text-amber-400 mt-1">
+                  Posts under 1,300 characters tend to get higher engagement on LinkedIn.
+                  Consider trimming for better reach.
+                </p>
+              )}
+              <textarea
+                value={linkedInText}
+                onChange={(e) => handleLinkedInTextChange(e.target.value)}
+                rows={8}
+                className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none leading-relaxed transition-colors"
+                placeholder="Write your LinkedIn post here…"
               />
             </div>
-            <textarea
-              value={editedText}
-              onChange={(e) => handleTextChange(e.target.value)}
-              rows={8}
-              className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none leading-relaxed transition-colors"
-              placeholder="Write your post here…"
-            />
-          </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Edit post
+                  </label>
+                  <span className={xText.length > 280 ? 'text-red-400' : 'text-zinc-400'}>
+                    {xText.length} / 280
+                  </span>
+                </div>
+                {/* Main tweet */}
+                <textarea
+                  value={xText}
+                  onChange={(e) => handleXTextChange(e.target.value)}
+                  maxLength={280}
+                  rows={4}
+                  className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none leading-relaxed transition-colors"
+                  placeholder="Write your main tweet here…"
+                />
+              </div>
+
+              {/* Thread continuation tweets */}
+              {threadTweets.map((tweet, i) => (
+                <div key={i} className="mt-3 border-t border-border pt-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Tweet {i + 2}/{threadTweets.length + 1}
+                    </span>
+                    <span className={tweet.length > 280 ? 'text-red-400' : 'text-zinc-400'}>
+                      {tweet.length} / 280
+                    </span>
+                  </div>
+                  <textarea
+                    value={tweet}
+                    onChange={(e) => {
+                      const updated = [...threadTweets];
+                      updated[i] = e.target.value;
+                      handleThreadTweetsChange(updated);
+                    }}
+                    maxLength={280}
+                    rows={3}
+                    className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none leading-relaxed transition-colors"
+                    placeholder={`Continuation tweet ${i + 2}…`}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Hashtags */}
           <div className="space-y-2">
@@ -837,8 +1070,8 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
               Hashtags
             </label>
             <HashtagEditor
-              hashtags={editedHashtags}
-              onChange={handleHashtagsChange}
+              hashtags={platform === "linkedin" ? linkedInHashtags : xHashtags}
+              onChange={platform === "linkedin" ? handleLinkedInHashtagsChange : handleXHashtagsChange}
             />
           </div>
 
@@ -906,15 +1139,19 @@ export function PostReviewCard({ post, achievement, isPro }: Props) {
         {/* ── RIGHT: actions ───────────────────────────────────────────── */}
         <div className="w-full lg:w-80 shrink-0 p-4 sm:p-6">
           <ActionsPanel
-            postId={post.id}
-            postText={editedText}
-            hashtags={editedHashtags}
-            status={postStatus}
-            publishedUrl={publishedUrl}
+            postId={platform === "linkedin" ? (linkedInPost?.id ?? post.id) : (xPost?.id ?? post.id)}
+            postText={platform === "linkedin" ? linkedInText : xText}
+            hashtags={platform === "linkedin" ? linkedInHashtags : xHashtags}
+            thread={platform === "linkedin" ? [] : threadTweets}
+            status={platform === "linkedin" ? postStatus : (xPost?.status ?? "draft")}
+            publishedUrl={platform === "linkedin" ? publishedUrl : null}
             isPro={isPro}
             saveState={saveState}
             onPublish={() => setShowPublishDialog(true)}
           />
+
+          {/* Resume & Portfolio card */}
+          <ResumePortfolioCard achievement={achievement} />
 
           {/* Achievement context card */}
           <div className="mt-4 rounded-xl border border-border bg-muted/40 p-4">

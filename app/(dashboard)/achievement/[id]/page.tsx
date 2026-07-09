@@ -4,6 +4,7 @@ import { achievements, posts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { AchievementDetail } from "@/components/achievement/achievement-detail";
+import { Paperclip } from "lucide-react";
 
 export const metadata = {
   title: "Achievement Details — Career Autopilot",
@@ -52,6 +53,35 @@ export default async function AchievementDetailPage({ params }: PageProps) {
         achievement={achievement}
         posts={postRows}
         user={user}
+        mediaSection={
+          achievement.mediaUrl ? (
+            <div className="border border-border bg-card/40 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Paperclip className="h-4 w-4" />
+                Attached {achievement.mediaType === "pdf" ? "document" : "image"}
+              </div>
+              {achievement.mediaType === "pdf" ? (
+                <a
+                  href={achievement.mediaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-emerald-400 hover:underline inline-block"
+                >
+                  View uploaded certificate →
+                </a>
+              ) : (
+                <img
+                  src={achievement.mediaUrl}
+                  alt="Achievement attachment"
+                  className="max-h-40 rounded border border-border object-contain"
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                This document's content was used to classify your achievement.
+              </p>
+            </div>
+          ) : null
+        }
       />
     </div>
   );

@@ -111,6 +111,7 @@ export const posts = pgTable(
     platform: platformEnum("platform").notNull(),
     draftText: text("draft_text").notNull(),
     hashtags: text("hashtags").array().default(sql`'{}'::text[]`),
+    thread: text("thread").array().default(sql`'{}'::text[]`),
     mediaUrls: text("media_urls").array().default(sql`'{}'::text[]`),
     mediaPrompt: text("media_prompt"),
     status: postStatusEnum("status").notNull().default("draft"),

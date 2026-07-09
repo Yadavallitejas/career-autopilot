@@ -33,6 +33,7 @@ interface AchievementDetailProps {
     status: string;
   }[];
   user: User;
+  mediaSection?: React.ReactNode;
 }
 
 type ToastVariant = "success" | "error" | "default";
@@ -65,6 +66,7 @@ export function AchievementDetail({
   achievement: initialAchievement,
   posts,
   user,
+  mediaSection,
 }: AchievementDetailProps) {
   const [achievement, setAchievement] = useState(initialAchievement);
   const [isPending, startTransition] = useTransition();
@@ -210,6 +212,9 @@ export function AchievementDetail({
               </p>
             </CardContent>
           </Card>
+
+          {/* Media Section */}
+          {mediaSection}
 
           {/* AI reasoning */}
           {achievement.reasoning && (

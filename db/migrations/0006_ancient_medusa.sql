@@ -1,0 +1,1 @@
+ALTER TABLE "posts" ADD COLUMN "thread" text[] DEFAULT '{}'::text[];
