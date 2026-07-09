@@ -34,6 +34,8 @@ interface AchievementStatus {
   classifiedResumeWorthy: boolean | null;
   classifiedPortfolioWorthy: boolean | null;
   reasoning: string | null;
+  replaceSuggestion: string | null;
+  portfolioReplaceSuggestion: string | null;
   posts: PostStatus[];
   createdAt?: string;
 }
@@ -204,8 +206,6 @@ function ResultsCard({
   onLogAnother: () => void;
 }) {
   const linkedinPost = data.posts.find((p) => p.platform === "linkedin");
-  const resumeScore = data.resumeScore ?? 0;
-  const portfolioScore = data.portfolioScore ?? 0;
   const resumeAdded = data.classifiedResumeWorthy;
   const portfolioAdded = data.classifiedPortfolioWorthy;
 
@@ -220,39 +220,71 @@ function ResultsCard({
 
       {/* Score badges */}
       <div className="flex flex-wrap gap-2">
-        <div
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold",
-            resumeAdded
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-300"
-              : "bg-muted border-border text-muted-foreground"
-          )}
-        >
-          <FileText size={13} />
-          <span>
-            Resume:{" "}
-            <span className="font-bold">{resumeScore}/10</span>
-            {" — "}
-            {resumeAdded ? "Added to Resume" : "Not added"}
-          </span>
-        </div>
+        {/* Resume badge */}
+        {data.resumeScore === null ? (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold bg-muted border-border text-muted-foreground">
+            <FileText size={13} />
+            <span>No resume connected{" "}</span>
+            <Link href="/resume" className="underline underline-offset-2 hover:text-foreground transition-colors">↗ Connect</Link>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "flex flex-col gap-1 px-3 py-2 rounded-xl border text-xs font-semibold",
+              resumeAdded
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-300"
+                : "bg-muted border-border text-muted-foreground"
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <FileText size={13} />
+              <span>
+                Resume:{" "}
+                <span className="font-bold">{data.resumeScore}/10</span>
+                {" — "}
+                {resumeAdded ? "Added to Resume" : "Not added"}
+              </span>
+            </div>
+            {data.replaceSuggestion && (
+              <p className="text-xs text-amber-500 dark:text-amber-400 font-normal mt-0.5">
+                💡 {data.replaceSuggestion}
+              </p>
+            )}
+          </div>
+        )}
 
-        <div
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold",
-            portfolioAdded
-              ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-300"
-              : "bg-muted border-border text-muted-foreground"
-          )}
-        >
-          <Globe size={13} />
-          <span>
-            Portfolio:{" "}
-            <span className="font-bold">{portfolioScore}/10</span>
-            {" — "}
-            {portfolioAdded ? "Portfolio updated" : "Not added"}
-          </span>
-        </div>
+        {/* Portfolio badge */}
+        {data.portfolioScore === null ? (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold bg-muted border-border text-muted-foreground">
+            <Globe size={13} />
+            <span>No portfolio connected{" "}</span>
+            <Link href="/portfolio" className="underline underline-offset-2 hover:text-foreground transition-colors">↗ Connect</Link>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "flex flex-col gap-1 px-3 py-2 rounded-xl border text-xs font-semibold",
+              portfolioAdded
+                ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-300"
+                : "bg-muted border-border text-muted-foreground"
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Globe size={13} />
+              <span>
+                Portfolio:{" "}
+                <span className="font-bold">{data.portfolioScore}/10</span>
+                {" — "}
+                {portfolioAdded ? "Portfolio updated" : "Not added"}
+              </span>
+            </div>
+            {data.portfolioReplaceSuggestion && (
+              <p className="text-xs text-amber-500 dark:text-amber-400 font-normal mt-0.5">
+                💡 {data.portfolioReplaceSuggestion}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Reasoning */}

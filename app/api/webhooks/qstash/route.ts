@@ -110,8 +110,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   logStep("Step 2: Fetching resume + portfolio + user rules context", pipelineStart);
 
   let currentResume: (typeof resumeVersions.$inferSelect) | undefined;
-  let existingResumeText = "";
+  let existingResumeText: string | null = null;
   let existingPortfolioProjects: string[] = [];
+  let hasPortfolio = false;
   let resumeRules: ResumeRules | null = null;
 
   try {
@@ -143,8 +144,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const portfolio = portfolioRows[0];
     const userRow = userRows[0];
 
-    existingResumeText = currentResume?.rawText ?? "";
+    // null signals "no resume connected" to classifyAchievement — triggers early return
+    existingResumeText = currentResume?.rawText ?? null;
     // Portfolio projects — currently stored as flat config; use deploy URL as context
+    hasPortfolio = !!portfolio?.deployUrl;
     existingPortfolioProjects = portfolio?.deployUrl ? [portfolio.deployUrl] : [];
     // Resume rules — cast from jsonb to typed object (null when not set)
     resumeRules = (userRow?.resumeRules as ResumeRules | null) ?? null;
@@ -159,6 +162,67 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logStep("Step 2: Context fetch failed (non-fatal), continuing", pipelineStart);
   }
 
+  // ─── Step 2.5: Enrich with media context ────────────────────────────────
+  logStep("Step 2.5: Enriching with media context", pipelineStart);
+
+  let mediaContext = "";
+
+  if (achievement.mediaUrl && achievement.mediaType) {
+    try {
+      if (achievement.mediaType === "pdf") {
+        // PDFs are text-based — download and extract the text
+        const response = await fetch(achievement.mediaUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const { extractTextFromPdf } = await import("@/lib/resume/extract-text");
+        const extractedText = await extractTextFromPdf(buffer);
+        mediaContext = `\n\nATTACHED CERTIFICATE (text extracted from PDF):\n${extractedText.slice(0, 3000)}`;
+        console.log("[Pipeline] PDF text extracted, length:", extractedText.length);
+
+      } else if (achievement.mediaType === "image") {
+        // Images: pass the URL directly to a vision model — do NOT extract text.
+        // Vision models understand layout, logos, and scores that text extraction misses.
+        const OpenAI = (await import("openai")).default;
+        const groq = new OpenAI({
+          apiKey: process.env.GROQ_API_KEY ?? "",
+          baseURL: "https://api.groq.com/openai/v1",
+        });
+
+        const visionResponse = await groq.chat.completions.create({
+          model: "meta-llama/llama-4-scout-17b-16e-instruct", // Groq's vision model
+          max_tokens: 500,
+          messages: [{
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: achievement.mediaUrl, detail: "low" },
+              },
+              {
+                type: "text",
+                text: `This image was attached by a professional to their achievement log. 
+              Describe what you see: certificate name, issuer, recipient name, date, score/grade, 
+              skills or course name if visible. Be factual and concise. 
+              Achievement text they wrote: "${achievement.rawInput}"`,
+              },
+            ],
+          }],
+        });
+
+        const imageDescription = visionResponse.choices[0]?.message?.content ?? "";
+        if (imageDescription) {
+          mediaContext = `\n\nATTACHED IMAGE (AI visual analysis):\n${imageDescription}`;
+          console.log("[Pipeline] Image described by vision model:", imageDescription.slice(0, 200));
+        }
+      }
+    } catch (mediaErr) {
+      console.warn("[Pipeline] Media enrichment failed (non-fatal):", mediaErr);
+      // Non-fatal: classification continues with text only
+    }
+  }
+
+  logStep("Step 2.5: Media enrichment complete", pipelineStart);
+
   // ─── Step 3: Classify ────────────────────────────────────────────────────
   logStep("Step 3: Classifying achievement", pipelineStart);
 
@@ -170,9 +234,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     classifyResult = await classifyAchievement({
       rawInput: achievement.rawInput,
-      existingResumeText,
+      mediaContext,              // separate param — not concatenated into rawInput
+      existingResumeText,        // null when no resume connected
       existingPortfolioProjects,
-      resumeRules,  // inject user's custom resume preferences into the AI prompt
+      hasPortfolio,              // false = no portfolio; scores will be null
+      resumeRules,               // inject user's custom resume preferences into the AI prompt
     });
 
     await db
@@ -186,6 +252,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         reasoning: classifyResult.reasoning,
         resumeBullet: classifyResult.resumeBullet,
         resumeSection: classifyResult.resumeSection,
+        replaceSuggestion: classifyResult.replaceSuggestion,
+        portfolioReplaceSuggestion: classifyResult.portfolioReplaceSuggestion,
         status: "classified",
       })
       .where(eq(achievements.id, achievementId));
@@ -278,6 +346,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       achievementType: classifyResult.achievementType,
       reasoning: classifyResult.reasoning,
       voiceProfile,
+      mediaContext,
+      mediaUrl: achievement.mediaUrl,
+      mediaType: achievement.mediaType,
     });
 
     const [insertedPost] = await db
@@ -308,6 +379,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       rawInput: achievement.rawInput,
       achievementType: classifyResult.achievementType,
       voiceProfile,
+      mediaContext,
+      mediaUrl: achievement.mediaUrl,
+      mediaType: achievement.mediaType,
     });
 
     await db.insert(posts).values({

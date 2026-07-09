@@ -329,7 +329,7 @@ function RecentTable({
                 <TableCell className="text-right">
                   {linkedinPost ? (
                     <Link
-                      href={`/post/${linkedinPost.id}`}
+                      href={`/post/${linkedinPost.id}/review`}
                       className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
                     >
                       Review post

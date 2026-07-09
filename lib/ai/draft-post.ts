@@ -109,14 +109,24 @@ export async function draftLinkedInPost({
   achievementType,
   reasoning,
   voiceProfile,
+  mediaContext,
+  mediaUrl,
+  mediaType,
 }: {
   rawInput: string;
   achievementType: string;
   reasoning: string;
   voiceProfile: Record<string, unknown> | null;
+  mediaContext?: string;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
 }): Promise<LinkedInDraft> {
   const voiceLine = voiceProfile
     ? `Voice style to match: ${JSON.stringify(voiceProfile)}`
+    : "";
+
+  const mediaContextLine = mediaContext
+    ? `\nADDITIONAL CONTEXT FROM ATTACHED DOCUMENT:\n${mediaContext}`
     : "";
 
   const prompt = `Write a high-performing LinkedIn post about this achievement. Return JSON:
@@ -125,7 +135,7 @@ export async function draftLinkedInPost({
 Achievement: "${rawInput}"
 Type: ${achievementType}
 Context: ${reasoning}
-${voiceLine}
+${voiceLine}${mediaContextLine}
 
 Rules for draftText:
 - First line: hook that does NOT start with 'I am excited', 'I am happy', 'Thrilled to', 'Happy to', or 'Excited to'
@@ -170,13 +180,23 @@ export async function draftXPost({
   rawInput,
   achievementType,
   voiceProfile,
+  mediaContext,
+  mediaUrl,
+  mediaType,
 }: {
   rawInput: string;
   achievementType: string;
   voiceProfile: Record<string, unknown> | null;
+  mediaContext?: string;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
 }): Promise<XDraft> {
   const voiceLine = voiceProfile
     ? `Voice style to match: ${JSON.stringify(voiceProfile)}`
+    : "";
+
+  const mediaContextLine = mediaContext
+    ? `\nADDITIONAL CONTEXT FROM ATTACHED DOCUMENT:\n${mediaContext}`
     : "";
 
   const prompt = `Write a tweet about this achievement. Return JSON:
@@ -184,7 +204,7 @@ export async function draftXPost({
 
 Achievement: "${rawInput}"
 Type: ${achievementType}
-${voiceLine}
+${voiceLine}${mediaContextLine}
 
 Rules:
 - draftText: max ${X_MAX_CHARS} characters, direct and punchy, different angle from LinkedIn

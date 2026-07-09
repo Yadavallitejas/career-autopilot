@@ -35,8 +35,8 @@ function getRedis(): Redis | null {
 // ---------------------------------------------------------------------------
 
 const ClassificationSchema = z.object({
-  resumeScore: z.number().int().min(1).max(10),
-  portfolioScore: z.number().int().min(1).max(10),
+  resumeScore: z.number().int().min(1).max(10).nullable(),
+  portfolioScore: z.number().int().min(1).max(10).nullable(),
   achievementType: z.enum([
     "certification",
     "project",
@@ -50,6 +50,8 @@ const ClassificationSchema = z.object({
   reasoning: z.string().min(10).max(500),
   resumeSection: z.string().nullable(),
   resumeBullet: z.string().nullable(),
+  replaceSuggestion: z.string().nullable(),
+  portfolioReplaceSuggestion: z.string().nullable(),
 });
 
 // ---------------------------------------------------------------------------
@@ -59,6 +61,8 @@ const ClassificationSchema = z.object({
 export type ClassificationOutput = z.infer<typeof ClassificationSchema> & {
   resumeWorthy: boolean;
   portfolioWorthy: boolean;
+  replaceSuggestion: string | null;
+  portfolioReplaceSuggestion: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -73,14 +77,16 @@ const PORTFOLIO_WORTHY_THRESHOLD = 6;
 // ---------------------------------------------------------------------------
 
 const SAFE_DEFAULTS: ClassificationOutput = {
-  resumeScore: 5,
-  portfolioScore: 4,
+  resumeScore: null,
+  portfolioScore: null,
   achievementType: "other",
   reasoning: "Classification failed — using defaults",
   resumeSection: null,
   resumeBullet: null,
   resumeWorthy: false,
   portfolioWorthy: false,
+  replaceSuggestion: null,
+  portfolioReplaceSuggestion: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -142,23 +148,31 @@ export function buildResumeRulesBlock(rules?: ResumeRules | null): string {
  */
 export async function classifyAchievement({
   rawInput,
+  mediaContext = "",
   existingResumeText,
   existingPortfolioProjects,
+  hasPortfolio,
   resumeRules,
 }: {
   rawInput: string;
-  existingResumeText: string;
+  /** Extracted text or AI description from an attached PDF/image */
+  mediaContext?: string;
+  /** null = user has no resume connected */
+  existingResumeText: string | null;
   existingPortfolioProjects: string[];
+  /** false = user has no portfolio connected; score should be null */
+  hasPortfolio: boolean;
   /** Optional per-user resume preferences — injected into the prompt when present */
   resumeRules?: ResumeRules | null;
 }): Promise<ClassificationOutput> {
   // ---------------------------------------------------------------------------
-  // 0. Cache check — hash the raw input for the key (first 16 hex chars of SHA-256)
+  // 0. Cache check — hash rawInput + mediaContext so different media yields
+  //    different cache entries even when the text is identical.
   // ---------------------------------------------------------------------------
   const redis = getRedis();
   const cacheKey = `classify:${crypto
     .createHash('sha256')
-    .update(rawInput)
+    .update(rawInput + mediaContext)
     .digest('hex')
     .slice(0, 16)}`;
 
@@ -175,26 +189,59 @@ export async function classifyAchievement({
     }
   }
 
-  const resumeContextBlock = existingResumeText?.trim()
-    ? `Existing resume context (first 2000 chars): "${existingResumeText.slice(0, 2000)}"`
-    : `IMPORTANT: This user has no resume on file. Score conservatively and note in your reasoning that this is a baseline score without resume context, not a comparative score. Recommend they add a resume for accurate future scoring.`;
+  // ---------------------------------------------------------------------------
+  // No-resume early return — don't attempt scoring without context
+  // ---------------------------------------------------------------------------
+  if (existingResumeText === null) {
+    return {
+      resumeScore: null,
+      resumeWorthy: false,
+      portfolioScore: null,
+      portfolioWorthy: false,
+      achievementType: "other",
+      reasoning: "No resume connected — upload your resume for personalized scoring.",
+      resumeSection: null,
+      resumeBullet: null,
+      replaceSuggestion: null,
+      portfolioReplaceSuggestion: null,
+    };
+  }
 
-  const prompt = `Evaluate this professional achievement and return JSON matching this schema exactly:
-{ "resumeScore": 1-10, "portfolioScore": 1-10, "achievementType": one of ["certification","project","award","job_change","education","open_source","publication","other"], "reasoning": "string (10-500 chars)", "resumeSection": "string or null", "resumeBullet": "ATS-optimized bullet or null" }
+  const mediaContextBlock = mediaContext?.trim()
+    ? `\nACHIEVEMENT MEDIA CONTEXT (certificate text or image analysis):\n${mediaContext}`
+    : "";
 
-Achievement: "${rawInput}"
+  const portfolioBlock = hasPortfolio
+    ? `USER'S PORTFOLIO PROJECTS:\n${existingPortfolioProjects.join("\n") || "(none listed)"}`
+    : `USER HAS NO PORTFOLIO CONNECTED: set portfolioScore to null, portfolioWorthy to false, portfolioReplaceSuggestion to null.`;
 
-${resumeContextBlock}
+  const prompt = `You are analyzing whether a professional achievement should be added to 
+THIS specific person's resume and portfolio — not whether it's good in general.
 
-Existing portfolio projects: ${JSON.stringify(existingPortfolioProjects)}
+USER'S CURRENT RESUME:
+${existingResumeText.slice(0, 4000)}
 
-Rules:
-- resumeScore >= ${RESUME_WORTHY_THRESHOLD} means resume-worthy → set resumeBullet (format: [Strong action verb] [what] [measurable result if available]) and set resumeSection
-- portfolioScore >= ${PORTFOLIO_WORTHY_THRESHOLD} means portfolio-worthy
-- resumeBullet format: [Strong action verb] [what] [measurable result if available]
-- resumeSection: choose from Certifications, Projects, Experience, Education, Open Source, Awards
-- Lower score if the achievement is already represented in the provided resume or portfolio context
-- reasoning must explain both scores in plain English (10-500 chars)${buildResumeRulesBlock(resumeRules)}`;
+ACHIEVEMENT BEING EVALUATED:
+${rawInput}${mediaContextBlock}
+
+${portfolioBlock}
+
+Return JSON with EXACTLY these fields:
+{ "resumeScore": number (1-10) | null, "portfolioScore": number (1-10) | null, "achievementType": one of ["certification","project","award","job_change","education","open_source","publication","other"], "reasoning": string (10-500 chars), "resumeSection": string | null, "resumeBullet": string | null, "replaceSuggestion": string | null, "portfolioReplaceSuggestion": string | null }
+
+Answer these specific questions:
+
+1. RESUME: Does adding this achievement make THIS person's resume stronger?
+   - Compare it against what's already there. Is it better than their weakest existing certification/experience? Would a recruiter value this more than something already listed?
+   - If yes (resumeScore >= ${RESUME_WORTHY_THRESHOLD}): set resumeBullet (format: [Strong action verb] [what] [measurable result]) and resumeSection (one of: Certifications, Projects, Experience, Education, Open Source, Awards). If there is a weaker existing item to replace, name it specifically in replaceSuggestion (e.g. "Consider removing your 2021 Udemy HTML course"). Otherwise set replaceSuggestion to null.
+   - If the resume is sparse (few entries): almost anything real-world adds value.
+   - If the resume is already strong: hold a higher standard.
+
+2. PORTFOLIO: Same logic — does this achievement (if it's a project/deployment) improve the portfolio vs what's already there? If portfolio not connected, return null for portfolioScore.
+   - If portfolioScore >= ${PORTFOLIO_WORTHY_THRESHOLD} and there is a weaker portfolio item to replace, name it in portfolioReplaceSuggestion. Otherwise null.
+
+- reasoning must be comparative and specific to this person's resume (10-500 chars)
+- Lower score if this achievement is already represented in their resume/portfolio${buildResumeRulesBlock(resumeRules)}`;
 
   // ---------------------------------------------------------------------------
   // 1. Call AI
@@ -253,14 +300,16 @@ Rules:
   // ---------------------------------------------------------------------------
 
   const data = validated.data;
-  const resumeWorthy = data.resumeScore >= RESUME_WORTHY_THRESHOLD;
-  const portfolioWorthy = data.portfolioScore >= PORTFOLIO_WORTHY_THRESHOLD;
+  const resumeWorthy = (data.resumeScore ?? 0) >= RESUME_WORTHY_THRESHOLD;
+  const portfolioWorthy = (data.portfolioScore ?? 0) >= PORTFOLIO_WORTHY_THRESHOLD;
 
-  // Enforce business rules: if not resume-worthy, clear the bullet + section
+  // Enforce business rules: if not resume-worthy, clear the bullet + section + replace hint
   const result: ClassificationOutput = {
     ...data,
     resumeBullet: resumeWorthy ? data.resumeBullet : null,
     resumeSection: resumeWorthy ? data.resumeSection : null,
+    replaceSuggestion: resumeWorthy ? (data.replaceSuggestion ?? null) : null,
+    portfolioReplaceSuggestion: portfolioWorthy ? (data.portfolioReplaceSuggestion ?? null) : null,
     resumeWorthy,
     portfolioWorthy,
   };

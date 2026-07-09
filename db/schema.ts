@@ -83,6 +83,9 @@ export const achievements = pgTable(
     reasoning: text("reasoning"),
     resumeBullet: text("resume_bullet"),
     resumeSection: text("resume_section"),
+    // AI comparative analysis — which existing entry to consider replacing
+    replaceSuggestion: text("replace_suggestion"),
+    portfolioReplaceSuggestion: text("portfolio_replace_suggestion"),
     mediaUrl: text("media_url"),
     mediaType: text("media_type"), // 'image' | 'pdf'
     status: achievementStatusEnum("status").notNull().default("processing"),

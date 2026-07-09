@@ -91,6 +91,8 @@ export async function GET(
         achievementType: achievement.achievementType,
         resumeBullet: achievement.resumeBullet,
         resumeSection: achievement.resumeSection,
+        replaceSuggestion: achievement.replaceSuggestion ?? null,
+        portfolioReplaceSuggestion: achievement.portfolioReplaceSuggestion ?? null,
         posts: achievementPosts,
         createdAt: achievement.createdAt,
       },
