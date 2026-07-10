@@ -125,17 +125,26 @@ export async function draftLinkedInPost({
     ? `Voice style to match: ${JSON.stringify(voiceProfile)}`
     : "";
 
-  const mediaContextLine = mediaContext
-    ? `\nADDITIONAL CONTEXT FROM ATTACHED DOCUMENT:\n${mediaContext}`
-    : "";
+  const achievementBlock = mediaContext
+    ? `
+IMPORTANT: The user attached a certificate/document with these details:
+${mediaContext}
+
+The user's typed text was vague ("${rawInput}"). 
+IGNORE the vague text. USE the certificate details above as your primary source.
+Write the post ABOUT this specific course — name it explicitly.
+Include: the exact course name, the issuing organization, what was learned/built.
+DO NOT write a generic "certifications are important" post.
+`
+    : `Achievement text: ${rawInput}`;
 
   const prompt = `Write a high-performing LinkedIn post about this achievement. Return JSON:
 { "draftText": string, "hashtags": string[], "mediaPrompt": string }
 
-Achievement: "${rawInput}"
+${achievementBlock}
 Type: ${achievementType}
 Context: ${reasoning}
-${voiceLine}${mediaContextLine}
+${voiceLine}
 
 Rules for draftText:
 - First line: hook that does NOT start with 'I am excited', 'I am happy', 'Thrilled to', 'Happy to', or 'Excited to'
@@ -195,16 +204,25 @@ export async function draftXPost({
     ? `Voice style to match: ${JSON.stringify(voiceProfile)}`
     : "";
 
-  const mediaContextLine = mediaContext
-    ? `\nADDITIONAL CONTEXT FROM ATTACHED DOCUMENT:\n${mediaContext}`
-    : "";
+  const achievementBlock = mediaContext
+    ? `
+IMPORTANT: The user attached a certificate/document with these details:
+${mediaContext}
+
+The user's typed text was vague ("${rawInput}"). 
+IGNORE the vague text. USE the certificate details above as your primary source.
+Write the post ABOUT this specific course — name it explicitly.
+Include: the exact course name, the issuing organization, what was learned/built.
+DO NOT write a generic "certifications are important" post.
+`
+    : `Achievement text: ${rawInput}`;
 
   const prompt = `Write a tweet about this achievement. Return JSON:
 { "draftText": string, "thread": string[], "hashtags": string[] }
 
-Achievement: "${rawInput}"
+${achievementBlock}
 Type: ${achievementType}
-${voiceLine}${mediaContextLine}
+${voiceLine}
 
 Rules:
 - draftText: max ${X_MAX_CHARS} characters, direct and punchy, different angle from LinkedIn
