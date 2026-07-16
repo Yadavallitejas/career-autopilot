@@ -1148,9 +1148,11 @@ function RepoWizard({ onComplete }: { onComplete: (url: string) => void }) {
 function ConfiguredView({
   config,
   onRedeploy,
+  onChangeRepo,
 }: {
   config: PortfolioConfig;
   onRedeploy: () => void;
+  onChangeRepo: () => void;
 }) {
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
@@ -1209,21 +1211,35 @@ function ConfiguredView({
           </div>
         )}
 
-        {config.githubRepoUrl && (
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-xs text-muted-foreground">Repository</span>
-            <a
-              href={config.githubRepoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Github size={12} />
-              {config.githubRepoUrl.replace("https://github.com/", "")}
-              <ExternalLink size={10} />
-            </a>
+        {/* Repository row with Change repo button */}
+        <div className="flex items-center justify-between px-4 py-3">
+          <div>
+            <div className="text-xs text-muted-foreground">Repository</div>
+            {config.githubRepoUrl ? (
+              <a
+                href={config.githubRepoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+              >
+                <Github size={12} />
+                {config.githubRepoUrl.replace("https://github.com/", "")}
+                <ExternalLink size={10} />
+              </a>
+            ) : (
+              <span className="text-xs text-muted-foreground/50 mt-0.5">Not set</span>
+            )}
           </div>
-        )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onChangeRepo}
+            className="border-border text-foreground hover:bg-muted gap-1.5 shrink-0"
+          >
+            <RotateCcw size={12} />
+            Change repo
+          </Button>
+        </div>
 
         {config.lastDeployed && (
           <div className="flex items-center justify-between px-4 py-3">
@@ -1241,6 +1257,149 @@ function ConfiguredView({
 }
 
 // ---------------------------------------------------------------------------
+// Change-repo sub-wizard (reuses existing steps inside a panel overlay)
+// ---------------------------------------------------------------------------
+
+type ChangeRepoStep = 'select' | 'detect' | 'deploy'
+
+function ChangeRepoWizard({
+  onComplete,
+  onCancel,
+}: {
+  onComplete: (url: string) => void
+  onCancel: () => void
+}) {
+  const [step, setStep] = useState<ChangeRepoStep>('select')
+  const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null)
+  const [detection, setDetection] = useState<DetectionResult | null>(null)
+  const [deployError, setDeployError] = useState<string | null>(null)
+  const [showConfetti, setShowConfetti] = useState(false)
+
+  function handleSuccess(url: string) {
+    setShowConfetti(true)
+    setTimeout(() => setShowConfetti(false), 4000)
+    onComplete(url)
+  }
+
+  const STEP_LABELS: Record<ChangeRepoStep, string> = {
+    select: 'Select repo',
+    detect: 'Review',
+    deploy: 'Deploy',
+  }
+  const STEPS: ChangeRepoStep[] = ['select', 'detect', 'deploy']
+  const stepIdx = STEPS.indexOf(step)
+
+  return (
+    <div className="fixed inset-0 z-40 bg-background/90 backdrop-blur-sm flex flex-col">
+      {showConfetti && <Confetti />}
+
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border px-4 sm:px-6 py-3 shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onCancel}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+          <span className="text-sm font-semibold text-foreground">Change repository</span>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-3">
+          {STEPS.map((s, idx) => (
+            <div key={s} className="flex items-center gap-2">
+              <div
+                className={cn(
+                  'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border transition-colors',
+                  idx < stepIdx
+                    ? 'bg-primary border-primary text-primary-foreground'
+                    : idx === stepIdx
+                    ? 'bg-muted border-border text-foreground'
+                    : 'bg-transparent border-border text-muted-foreground/50'
+                )}
+              >
+                {idx < stepIdx ? <CheckCircle2 size={10} /> : idx + 1}
+              </div>
+              <span
+                className={cn(
+                  'text-xs hidden sm:inline transition-colors',
+                  idx === stepIdx ? 'text-foreground font-medium' : 'text-muted-foreground/50'
+                )}
+              >
+                {STEP_LABELS[s]}
+              </span>
+              {idx < STEPS.length - 1 && (
+                <div
+                  className={cn(
+                    'h-px w-6 transition-colors',
+                    idx < stepIdx ? 'bg-primary/40' : 'bg-border'
+                  )}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Step content */}
+      <div className="flex-1 overflow-y-auto">
+        {step === 'select' && (
+          <RepoSelector
+            onSelect={(repo) => {
+              setSelectedRepo(repo)
+              setStep('detect')
+            }}
+          />
+        )}
+
+        {step === 'detect' && selectedRepo && (
+          <DetectStep
+            repo={selectedRepo}
+            onConfirm={(d) => {
+              setDetection(d)
+              setStep('deploy')
+            }}
+            onBack={() => setStep('select')}
+          />
+        )}
+
+        {step === 'deploy' && selectedRepo && detection && (
+          <>
+            {deployError ? (
+              <div className="flex flex-col items-center gap-4 py-16 text-center">
+                <AlertTriangle size={40} className="text-red-400" />
+                <p className="text-sm text-red-400">{deployError}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    setDeployError(null)
+                    setStep('detect')
+                  }}
+                >
+                  <RotateCcw size={13} className="mr-1.5" />
+                  Try again
+                </Button>
+              </div>
+            ) : (
+              <DeployStep
+                repo={selectedRepo}
+                detection={detection}
+                onSuccess={handleSuccess}
+                onError={(msg) => setDeployError(msg)}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Root component
 // ---------------------------------------------------------------------------
 
@@ -1250,6 +1409,7 @@ export function PortfolioConfig({
 }: Props) {
   const [config, setConfig] = useState(initialConfig)
   const [showWizard, setShowWizard] = useState(false)
+  const [showRepoSelector, setShowRepoSelector] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
 
   function handleDeployComplete(url: string) {
@@ -1274,6 +1434,14 @@ export function PortfolioConfig({
     setShowWizard(false)
   }
 
+  function handleChangeRepoComplete(url: string) {
+    setShowConfetti(true)
+    setTimeout(() => setShowConfetti(false), 4000)
+    // Refresh the page so the updated portfolio_config is fetched from the DB
+    setShowRepoSelector(false)
+    window.location.reload()
+  }
+
   // Case 1: No GitHub connected — show two-tab UI
   if (!hasGitHub) {
     return (
@@ -1287,10 +1455,20 @@ export function PortfolioConfig({
   // Case 2a: Configured and not re-deploying
   if (config?.deployUrl && !showWizard) {
     return (
-      <ConfiguredView
-        config={config}
-        onRedeploy={() => setShowWizard(true)}
-      />
+      <>
+        {showConfetti && <Confetti />}
+        <ConfiguredView
+          config={config}
+          onRedeploy={() => setShowWizard(true)}
+          onChangeRepo={() => setShowRepoSelector(true)}
+        />
+        {showRepoSelector && (
+          <ChangeRepoWizard
+            onComplete={handleChangeRepoComplete}
+            onCancel={() => setShowRepoSelector(false)}
+          />
+        )}
+      </>
     )
   }
 

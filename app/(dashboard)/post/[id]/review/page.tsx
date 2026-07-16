@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/get-user";
 import { db } from "@/db";
-import { posts, achievements } from "@/db/schema";
+import { posts, achievements, connectedAccounts, portfolioConfig } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { PostReviewCard } from "@/components/post/post-review-card";
 import type { Post, Achievement } from "@/db/schema";
@@ -38,15 +38,34 @@ export default async function PostReviewPage({
   if (!row) notFound();
 
   // Fetch all posts for this achievement to support switching tabs with correct draft texts
-  const achievementPosts = await db
-    .select()
-    .from(posts)
-    .where(eq(posts.achievementId, row.achievement.id));
+  const [achievementPosts, portfolioRows, githubAccountRows] = await Promise.all([
+    db
+      .select()
+      .from(posts)
+      .where(eq(posts.achievementId, row.achievement.id)),
+    db
+      .select({ deployUrl: portfolioConfig.deployUrl })
+      .from(portfolioConfig)
+      .where(eq(portfolioConfig.userId, user.id))
+      .limit(1),
+    db
+      .select({ id: connectedAccounts.id })
+      .from(connectedAccounts)
+      .where(
+        and(
+          eq(connectedAccounts.userId, user.id),
+          eq(connectedAccounts.platform, "github")
+        )
+      )
+      .limit(1),
+  ]);
 
   const linkedInPost = achievementPosts.find((p) => p.platform === "linkedin");
   const xPost = achievementPosts.find((p) => p.platform === "x");
 
   const isPro = user.plan === "pro" || user.plan === "team";
+  const hasDeployedPortfolio = !!portfolioRows[0]?.deployUrl;
+  const hasConnectedGitHub = githubAccountRows.length > 0;
 
   return (
     <div className="min-h-full pb-20 md:pb-6">
@@ -72,6 +91,8 @@ export default async function PostReviewPage({
         xPost={xPost as Post | undefined}
         achievement={row.achievement as Achievement}
         isPro={isPro}
+        hasDeployedPortfolio={hasDeployedPortfolio}
+        hasConnectedGitHub={hasConnectedGitHub}
       />
     </div>
   );

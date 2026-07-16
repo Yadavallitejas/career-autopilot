@@ -8,12 +8,13 @@ import {
   posts,
   resumeVersions,
   portfolioConfig,
+  connectedAccounts,
   users,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { classifyAchievement, type ResumeRules } from "@/lib/ai/classify";
 import { draftLinkedInPost, draftXPost } from "@/lib/ai/draft-post";
-import { addBulletToResume, buildResumeFromData } from "@/lib/resume/builder";
+
 import { sendEmail } from "@/lib/email/send";
 import { AchievementCompleteEmail } from "@/lib/email/templates";
 import { checkMediaRelevance } from "@/lib/ai/check-media";
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let resumeRules: ResumeRules | null = null;
 
   try {
-    const [currentResumeRows, portfolioRows, userRows] = await Promise.all([
+    const [currentResumeRows, portfolioRows, userRows, githubAccountRows] = await Promise.all([
       db
         .select()
         .from(resumeVersions)
@@ -138,6 +139,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .from(users)
         .where(eq(users.id, userId))
         .limit(1),
+      // Check whether the user has connected GitHub (even without a deployed portfolio)
+      db
+        .select({ id: connectedAccounts.id })
+        .from(connectedAccounts)
+        .where(
+          and(
+            eq(connectedAccounts.userId, userId),
+            eq(connectedAccounts.platform, "github")
+          )
+        )
+        .limit(1),
     ]);
 
     currentResume = currentResumeRows[0];
@@ -146,9 +158,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // null signals "no resume connected" to classifyAchievement — triggers early return
     existingResumeText = currentResume?.rawText ?? null;
-    // Portfolio projects — currently stored as flat config; use deploy URL as context
-    hasPortfolio = !!portfolio?.deployUrl;
-    existingPortfolioProjects = portfolio?.deployUrl ? [portfolio.deployUrl] : [];
+
+    // Portfolio is "connected" if user has either a live deploy OR a connected GitHub account.
+    // This prevents the AI from showing "Connect portfolio" nag for GitHub-connected users.
+    const hasDeployedPortfolio = !!portfolio?.deployUrl;
+    const hasConnectedGitHub = githubAccountRows.length > 0;
+    hasPortfolio = hasDeployedPortfolio || hasConnectedGitHub;
+
+    // Only pass a concrete URL when there is an actual deployed portfolio.
+    existingPortfolioProjects = hasDeployedPortfolio ? [portfolio!.deployUrl!] : [];
+
     // Resume rules — cast from jsonb to typed object (null when not set)
     resumeRules = (userRow?.resumeRules as ResumeRules | null) ?? null;
 
@@ -403,80 +422,101 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let resumeUpdated = false;
 
-  if (classifyResult.resumeWorthy && classifyResult.resumeBullet) {
-    if (user && user.resumeSource === "built" && user.autoApplyResumeUpdates) {
-      try {
-        if (!currentResume) {
-          console.warn(
-            "[qstash] Achievement is resume-worthy but user has no current resume — skipping resume update"
-          );
-        } else {
-          // Attempt to parse the stored resume text as structured JSON data.
-          // Resume rawText is plain text (not JSON) for now — use the builder's
-          // addBulletToResume when it's implemented. For now we record the bullet
-          // in the DB and defer PDF generation to the resume builder stub.
-          const existingData = (() => {
-            try {
-              return JSON.parse(currentResume.rawText);
-            } catch {
-              // rawText is plain text, not JSON — builder will handle conversion
-              return null;
-            }
-          })();
+  if (classifyResult.resumeWorthy && classifyResult.resumeBullet && currentResume) {
+    try {
+      // Get structured data — for built resumes it exists already,
+      // for uploaded resumes we generate it from raw text on demand
+      let resumeData = currentResume.structuredData as import("@/lib/resume/builder").ResumeData | null;
 
-          if (existingData) {
-            const updatedData = await addBulletToResume(
-              existingData,
-              classifyResult.resumeSection ?? "Experience",
-              classifyResult.resumeBullet
-            );
-            const pdfBuffer = await buildResumeFromData(updatedData, resumeRules);
-
-            // Mark previous versions as not current
-            await db
-              .update(resumeVersions)
-              .set({ isCurrent: false })
-              .where(
-                and(
-                  eq(resumeVersions.userId, userId),
-                  eq(resumeVersions.isCurrent, true)
-                )
-              );
-
-            // Insert new current version
-            await db.insert(resumeVersions).values({
-              userId,
-              templateId: currentResume.templateId ?? "classic",
-              // PDF upload to Supabase deferred — store as data URI for now
-              fileUrl: `data:application/pdf;base64,${pdfBuffer.toString("base64")}`,
-              rawText: JSON.stringify(updatedData),
-              isCurrent: true,
-              changesSummary: `Added bullet to ${classifyResult.resumeSection ?? "Experience"}: ${classifyResult.resumeBullet.slice(0, 80)}…`,
-            });
-
-            resumeUpdated = true;
-            logStep("Step 7: Resume updated", pipelineStart);
-          } else {
-            console.warn(
-              "[qstash] Resume rawText is plain text — skipping structured update until builder is implemented"
-            );
-          }
-        }
-      } catch (resumeErr) {
-        // Resume update is non-fatal — achievement still completes
-        console.error("[qstash] Resume update failed:", resumeErr);
+      if (!resumeData) {
+        // Uploaded resume: structurize the raw text with AI on demand
+        console.log("[Pipeline] Structurizing uploaded resume for update");
+        const { structurizeResumeText } = await import("@/lib/resume/structurize");
+        resumeData = (await structurizeResumeText(currentResume.rawText)) as unknown as import("@/lib/resume/builder").ResumeData;
       }
-    } else {
-      // User uploaded their own resume — do NOT touch their file.
-      // Just store the suggestion as pending (already stored on the achievement
-      // via resumeBullet/resumeSection columns — no action needed here).
-      // The achievement record already has classifiedResumeWorthy=true, 
-      // resumeBullet, resumeSection set from the classification step.
-      console.log('[Pipeline] Resume suggestion stored as pending — user resume is uploaded type, not auto-applying')
+
+      // Add the bullet to the correct section
+      const section = classifyResult.resumeSection ?? "experience";
+      const bullet = classifyResult.resumeBullet;
+
+      if (section.toLowerCase().includes("cert")) {
+        resumeData.certifications = [
+          ...(resumeData.certifications ?? []),
+          {
+            name: bullet,
+            issuer: classifyResult.achievementType ?? "",
+            date: new Date().toLocaleDateString("en-IN", {
+              month: "short",
+              year: "numeric",
+            }),
+            url: undefined,
+          },
+        ];
+      } else if (section.toLowerCase().includes("project")) {
+        resumeData.projects = [
+          ...(resumeData.projects ?? []),
+          {
+            name: bullet.split(":")[0] ?? bullet,
+            description: bullet,
+            url: undefined,
+            tech: [],
+          },
+        ];
+      } else {
+        // Default: prepend bullet to the most recent experience role
+        if (resumeData.experience && resumeData.experience.length > 0) {
+          resumeData.experience[0].bullets = [
+            bullet,
+            ...(resumeData.experience[0].bullets ?? []),
+          ];
+        }
+        // If no experience entries exist, the bullet is still captured in the
+        // achievement record via resumeBullet — nothing more to do here.
+      }
+
+      // Get user's resume rules for PDF generation
+      const userResumeRules = (user?.resumeRules as Record<string, unknown>) ?? {};
+      const templateId =
+        (userResumeRules.templateId as "classic" | "modern") ?? "classic";
+      const isPro =
+        user?.plan === "pro" || user?.plan === "team" ? true : false;
+
+      // Generate updated PDF — works for both built and uploaded resumes
+      const { generateResumePdf } = await import("@/lib/resume/builder");
+      const { fileUrl, rawText: newRawText } = await generateResumePdf({
+        userId,
+        templateId,
+        isPro,
+        resumeData,
+        resumeRules: userResumeRules,
+      });
+
+      // Deactivate old version, save new version
+      await db
+        .update(resumeVersions)
+        .set({ isCurrent: false })
+        .where(eq(resumeVersions.userId, userId));
+
+      await db.insert(resumeVersions).values({
+        userId,
+        fileUrl,
+        rawText: newRawText,
+        structuredData: resumeData as unknown as Record<string, unknown>,
+        isCurrent: true,
+        templateId,
+        changesSummary: `Auto-added: ${bullet.slice(0, 80)}…`,
+      });
+
+      resumeUpdated = true;
+      console.log("[Pipeline] Resume updated successfully for section:", section);
+      logStep("Step 8: Resume updated", pipelineStart);
+    } catch (resumeErr) {
+      // Resume update is non-fatal — achievement still completes
+      console.error("[Pipeline] Resume update failed (non-fatal):", resumeErr);
     }
   } else {
     logStep(
-      `Step 7: Skipped (resumeWorthy=${classifyResult.resumeWorthy})`,
+      `Step 8: Skipped (resumeWorthy=${classifyResult.resumeWorthy}, hasBullet=${!!classifyResult.resumeBullet}, hasResume=${!!currentResume})`,
       pipelineStart
     );
   }

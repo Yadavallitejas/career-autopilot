@@ -50,7 +50,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Resolve GitHub token
   const [account] = await db
-    .select({ accessToken: connectedAccounts.accessToken })
+    .select({
+      accessToken: connectedAccounts.accessToken,
+      platformUsername: connectedAccounts.platformUsername,
+    })
     .from(connectedAccounts)
     .where(
       and(
@@ -120,7 +123,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Generate a deterministic placeholder deploy URL for the UI to poll against
   const deployUrlPlaceholder = buildPlaceholderUrl(
     detection.deployTarget,
-    repoName
+    repoName,
+    account.platformUsername || repoOwner
   );
 
   // Upsert portfolio_config
@@ -237,7 +241,11 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildPlaceholderUrl(deployTarget: string, repoName: string): string {
+function buildPlaceholderUrl(
+  deployTarget: string,
+  repoName: string,
+  ownerUsername?: string
+): string {
   const slug = repoName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
   switch (deployTarget) {
     case "vercel":
@@ -249,7 +257,8 @@ function buildPlaceholderUrl(deployTarget: string, repoName: string): string {
     case "railway":
       return `https://${slug}.railway.app`;
     case "github-pages":
-      return `https://${slug}.github.io/${repoName}`;
+      const username = (ownerUsername || slug).toLowerCase();
+      return `https://${username}.github.io/${repoName}`;
     default:
       return `https://${slug}.vercel.app`;
   }

@@ -41,6 +41,10 @@ interface Props {
   xPost?: Post | null;
   achievement: Achievement;
   isPro: boolean;
+  /** User has a deployed portfolio URL in portfolio_config */
+  hasDeployedPortfolio?: boolean;
+  /** User has GitHub connected in connected_accounts (even without a deploy) */
+  hasConnectedGitHub?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -515,7 +519,15 @@ function useCopyToClipboard() {
 // Resume & Portfolio card
 // ---------------------------------------------------------------------------
 
-function ResumePortfolioCard({ achievement }: { achievement: Achievement }) {
+function ResumePortfolioCard({
+  achievement,
+  hasDeployedPortfolio = false,
+  hasConnectedGitHub = false,
+}: {
+  achievement: Achievement;
+  hasDeployedPortfolio?: boolean;
+  hasConnectedGitHub?: boolean;
+}) {
   const router = useRouter();
   const [isAdding, setIsAdding] = useState(false);
 
@@ -557,6 +569,76 @@ function ResumePortfolioCard({ achievement }: { achievement: Achievement }) {
     }
   }
 
+  // ── Portfolio section rendering ────────────────────────────────────────────
+  // Three distinct states:
+  //   1. hasDeployedPortfolio  → show score (X/10) from classification
+  //   2. hasConnectedGitHub    → GitHub connected but no deploy yet
+  //   3. neither               → prompt to connect portfolio
+  function PortfolioSection() {
+    if (hasDeployedPortfolio) {
+      // State 1: deployed — show scored result
+      return classifiedPortfolioWorthy ? (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-violet-400 shrink-0" />
+            <span className="text-sm text-foreground">
+              Portfolio: {portfolioScore !== null ? `${portfolioScore}/10` : "—"}
+            </span>
+          </div>
+          {portfolioReplaceSuggestion && (
+            <p className="text-[10px] text-amber-400/80 leading-snug">
+              💡 {portfolioReplaceSuggestion}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <XCircle className="h-4 w-4 text-zinc-500 shrink-0" />
+          <span className="text-sm text-muted-foreground">
+            Portfolio: {portfolioScore !== null ? `${portfolioScore}/10` : "Not scored"}
+          </span>
+        </div>
+      );
+    }
+
+    if (hasConnectedGitHub) {
+      // State 2: GitHub connected but no live deploy yet
+      return (
+        <div className="flex items-start gap-2">
+          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="text-sm text-foreground">GitHub connected</span>
+            <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
+              Deploy a portfolio to track project fit
+            </p>
+            <a
+              href="/portfolio"
+              className="inline-block mt-1.5 text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              Deploy portfolio →
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    // State 3: no portfolio at all
+    return (
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <XCircle className="h-4 w-4 text-zinc-500 shrink-0" />
+          <span className="text-sm text-muted-foreground">Portfolio not connected</span>
+        </div>
+        <a
+          href="/portfolio"
+          className="text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors whitespace-nowrap"
+        >
+          Connect portfolio →
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-4 rounded-xl border border-border bg-muted/40 p-4 space-y-3">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -587,6 +669,14 @@ function ResumePortfolioCard({ achievement }: { achievement: Achievement }) {
               💡 {replaceSuggestion}
             </p>
           )}
+          {/* Auto-update notice — shown for all resume types */}
+          <p className="text-[11px] text-emerald-400/80 leading-snug">
+            ✓ Your resume was updated automatically. Download the updated PDF from the{" "}
+            <a href="/resume" className="underline underline-offset-2 hover:text-emerald-300 transition-colors">
+              Resume page
+            </a>
+            .
+          </p>
           <Button
             size="sm"
             variant="outline"
@@ -599,7 +689,7 @@ function ResumePortfolioCard({ achievement }: { achievement: Achievement }) {
             ) : (
               <FileText size={12} />
             )}
-            {isAdding ? "Adding…" : "Add to Resume"}
+            {isAdding ? "Applying…" : "Re-apply to Resume"}
           </Button>
         </div>
       ) : (
@@ -615,28 +705,7 @@ function ResumePortfolioCard({ achievement }: { achievement: Achievement }) {
       <div className="border-t border-border" />
 
       {/* Portfolio section */}
-      {classifiedPortfolioWorthy ? (
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-violet-400 shrink-0" />
-            <span className="text-sm text-foreground">
-              Portfolio: {portfolioScore !== null ? `${portfolioScore}/10` : "—"}
-            </span>
-          </div>
-          {portfolioReplaceSuggestion && (
-            <p className="text-[10px] text-amber-400/80 leading-snug">
-              💡 {portfolioReplaceSuggestion}
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <XCircle className="h-4 w-4 text-zinc-500 shrink-0" />
-          <span className="text-sm text-muted-foreground">
-            Portfolio: {portfolioScore !== null ? `${portfolioScore}/10` : "Not scored"}
-          </span>
-        </div>
-      )}
+      <PortfolioSection />
     </div>
   );
 }
@@ -759,7 +828,7 @@ function ActionsPanel({
 // Main export
 // ---------------------------------------------------------------------------
 
-export function PostReviewCard({ post, linkedInPost, xPost, achievement, isPro }: Props) {
+export function PostReviewCard({ post, linkedInPost, xPost, achievement, isPro, hasDeployedPortfolio = false, hasConnectedGitHub = false }: Props) {
   const [platform, setPlatform] = useState<"linkedin" | "x">(
     post.platform === "linkedin" ? "linkedin" : "x"
   );
@@ -1151,7 +1220,11 @@ export function PostReviewCard({ post, linkedInPost, xPost, achievement, isPro }
           />
 
           {/* Resume & Portfolio card */}
-          <ResumePortfolioCard achievement={achievement} />
+          <ResumePortfolioCard
+            achievement={achievement}
+            hasDeployedPortfolio={hasDeployedPortfolio}
+            hasConnectedGitHub={hasConnectedGitHub}
+          />
 
           {/* Achievement context card */}
           <div className="mt-4 rounded-xl border border-border bg-muted/40 p-4">

@@ -125,17 +125,46 @@ export async function generateResumePdf({
   templateId,
   isPro,
   resumeData,
+  resumeRules = {},
 }: {
   userId: string;
   templateId: "classic" | "modern";
   isPro: boolean;
   resumeData: ResumeData;
+  resumeRules?: Record<string, unknown>;
 }): Promise<{ fileUrl: string; rawText: string }> {
+  // Apply user resume rules before rendering
+  let data = structuredClone(resumeData);
+  const appliedRules: string[] = [];
+
+  const excludeSections = Array.isArray(resumeRules.excludeSections)
+    ? (resumeRules.excludeSections as string[])
+    : [];
+
+  if (excludeSections.includes("projects")) {
+    data.projects = [];
+    appliedRules.push("excludeSections:projects");
+  }
+  if (excludeSections.includes("certifications")) {
+    data.certifications = [];
+    appliedRules.push("excludeSections:certifications");
+  }
+
+  if (resumeRules.maxPages === 1) {
+    // applyPageConstraints handles bullet trimming, caps, and summary removal
+    data = applyPageConstraints(data, 1);
+    appliedRules.push("maxPages:1");
+  }
+
+  if (appliedRules.length > 0) {
+    console.log("[Builder] Applied rules:", appliedRules);
+  }
+
   // 1. Select template component — cast to PDFDocElement to satisfy renderToBuffer
   const element: PDFDocElement =
     templateId === "modern"
-      ? (React.createElement(ModernTemplate, { data: resumeData, isPro }) as PDFDocElement)
-      : (React.createElement(ClassicTemplate, { data: resumeData, isPro }) as PDFDocElement);
+      ? (React.createElement(ModernTemplate, { data, isPro }) as PDFDocElement)
+      : (React.createElement(ClassicTemplate, { data, isPro }) as PDFDocElement);
 
   // 2. Render to PDF buffer
   const buffer = await ReactPDF.renderToBuffer(element);
@@ -158,11 +187,12 @@ export async function generateResumePdf({
   }
 
   // 5. Build rawText for AI context
-  const rawText = buildRawText(resumeData);
+  const rawText = buildRawText(data);
 
   // Return the storage path (filename) directly
   return { fileUrl: filename, rawText };
 }
+
 
 // ---------------------------------------------------------------------------
 // buildResumeFromData — simple buffer-only helper (used by QStash pipeline)
