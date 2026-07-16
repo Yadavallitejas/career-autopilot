@@ -16,7 +16,14 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ['pdf-parse', '@napi-rs/canvas'],
+    serverComponentsExternalPackages: [
+      '@react-pdf/renderer',
+      'pdf-parse',
+      'mammoth',
+      'canvas',
+      '@napi-rs/canvas',
+      'pdfjs-dist',
+    ],
     serverActions: {
       allowedOrigins: ["localhost:3000"],
       // Increase body size limit to handle resume file uploads (PDF/DOCX up to 10MB)
