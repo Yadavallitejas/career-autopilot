@@ -14,7 +14,8 @@ import {
 import { eq, and } from "drizzle-orm";
 import { classifyAchievement, type ResumeRules } from "@/lib/ai/classify";
 import { draftLinkedInPost, draftXPost } from "@/lib/ai/draft-post";
-
+import { extractCertificateContent, type ExtractedCertificate } from "@/lib/ai/extract-certificate";
+import { buildEnrichedInput } from "@/lib/utils";
 import { sendEmail } from "@/lib/email/send";
 import { AchievementCompleteEmail } from "@/lib/email/templates";
 import { checkMediaRelevance } from "@/lib/ai/check-media";
@@ -181,66 +182,72 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logStep("Step 2: Context fetch failed (non-fatal), continuing", pipelineStart);
   }
 
-  // ─── Step 2.5: Enrich with media context ────────────────────────────────
-  logStep("Step 2.5: Enriching with media context", pipelineStart);
+  // ─── Step 2.5: Extract file content (new uploads) ───────────────────────
+  logStep("Step 2.5: Extracting file content", pipelineStart);
 
-  let mediaContext = "";
+  let extractedCertificate: ExtractedCertificate | null = null;
+  let enrichedInput = achievement.rawInput;
 
-  if (achievement.mediaUrl && achievement.mediaType) {
+  if (achievement.fileUrl && achievement.fileType) {
+    try {
+      extractedCertificate = await extractCertificateContent(
+        achievement.fileUrl,
+        achievement.fileType as "image" | "pdf" | "document"
+      );
+
+      // Persist extracted content so it can be surfaced in the UI / later calls
+      await db
+        .update(achievements)
+        .set({ extractedContent: JSON.stringify(extractedCertificate) })
+        .where(eq(achievements.id, achievement.id));
+
+      // Build enriched context: structured cert fields + user's own description
+      enrichedInput = buildEnrichedInput(achievement.rawInput, extractedCertificate);
+
+      console.log(
+        `[Pipeline] File extracted (${achievement.fileType}), enrichedInput length: ${enrichedInput.length}`
+      );
+    } catch (err) {
+      console.error("[Pipeline] File extraction failed (non-fatal):", err);
+      // Degrade gracefully — pipeline continues with rawInput only
+    }
+  } else if (achievement.mediaUrl && achievement.mediaType) {
+    // Legacy path: old mediaUrl/mediaType uploads — keep working as before
     try {
       if (achievement.mediaType === "pdf") {
-        // PDFs are text-based — download and extract the text
         const response = await fetch(achievement.mediaUrl);
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const { extractTextFromPdf } = await import("@/lib/resume/extract-text");
         const extractedText = await extractTextFromPdf(buffer);
-        mediaContext = `\n\nATTACHED CERTIFICATE (text extracted from PDF):\n${extractedText.slice(0, 3000)}`;
-        console.log("[Pipeline] PDF text extracted, length:", extractedText.length);
-
+        enrichedInput = `${achievement.rawInput}\n\nATTACHED CERTIFICATE (PDF text):\n${extractedText.slice(0, 3000)}`;
+        console.log("[Pipeline] Legacy PDF extracted, length:", extractedText.length);
       } else if (achievement.mediaType === "image") {
-        // Images: pass the URL directly to a vision model — do NOT extract text.
-        // Vision models understand layout, logos, and scores that text extraction misses.
         const OpenAI = (await import("openai")).default;
         const groq = new OpenAI({
           apiKey: process.env.GROQ_API_KEY ?? "",
           baseURL: "https://api.groq.com/openai/v1",
         });
-
         const visionResponse = await groq.chat.completions.create({
-          model: "meta-llama/llama-4-scout-17b-16e-instruct", // Groq's vision model
+          model: "meta-llama/llama-4-scout-17b-16e-instruct",
           max_tokens: 500,
           messages: [{
             role: "user",
             content: [
-              {
-                type: "image_url",
-                image_url: { url: achievement.mediaUrl, detail: "low" },
-              },
-              {
-                type: "text",
-                text: `This image was attached by a professional to their achievement log. 
-              Describe what you see: certificate name, issuer, recipient name, date, score/grade, 
-              skills or course name if visible. Be factual and concise. 
-              Achievement text they wrote: "${achievement.rawInput}"`,
-              },
+              { type: "image_url", image_url: { url: achievement.mediaUrl, detail: "low" } },
+              { type: "text", text: `Describe this certificate: name, issuer, recipient, date, score, skills. Achievement text: "${achievement.rawInput}"` },
             ],
           }],
         });
-
-        const imageDescription = visionResponse.choices[0]?.message?.content ?? "";
-        if (imageDescription) {
-          mediaContext = `\n\nATTACHED IMAGE (AI visual analysis):\n${imageDescription}`;
-          console.log("[Pipeline] Image described by vision model:", imageDescription.slice(0, 200));
-        }
+        const desc = visionResponse.choices[0]?.message?.content ?? "";
+        if (desc) enrichedInput = `${achievement.rawInput}\n\nATTACHED IMAGE (visual analysis):\n${desc}`;
       }
     } catch (mediaErr) {
-      console.warn("[Pipeline] Media enrichment failed (non-fatal):", mediaErr);
-      // Non-fatal: classification continues with text only
+      console.warn("[Pipeline] Legacy media enrichment failed (non-fatal):", mediaErr);
     }
   }
 
-  logStep("Step 2.5: Media enrichment complete", pipelineStart);
+  logStep("Step 2.5: File extraction complete", pipelineStart);
 
   // ─── Step 3: Classify ────────────────────────────────────────────────────
   logStep("Step 3: Classifying achievement", pipelineStart);
@@ -252,12 +259,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     classifyResult = await classifyAchievement({
-      rawInput: achievement.rawInput,
-      mediaContext,              // separate param — not concatenated into rawInput
-      existingResumeText,        // null when no resume connected
+      rawInput: enrichedInput,      // enriched with structured cert data (or raw if no file)
+      mediaContext: "",             // mediaContext now folded into enrichedInput
+      existingResumeText,
       existingPortfolioProjects,
-      hasPortfolio,              // false = no portfolio; scores will be null
-      resumeRules,               // inject user's custom resume preferences into the AI prompt
+      hasPortfolio,
+      resumeRules,
     });
 
     await db
@@ -361,11 +368,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const linkedInDraft = await draftLinkedInPost({
-      rawInput: achievement.rawInput,
+      rawInput: enrichedInput,       // full cert context for richer post copy
       achievementType: classifyResult.achievementType,
       reasoning: classifyResult.reasoning,
       voiceProfile,
-      mediaContext,
+      mediaContext: "",              // already folded into enrichedInput
       mediaUrl: achievement.mediaUrl,
       mediaType: achievement.mediaType,
     });
@@ -395,10 +402,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const xDraft = await draftXPost({
-      rawInput: achievement.rawInput,
+      rawInput: enrichedInput,       // full cert context for richer post copy
       achievementType: classifyResult.achievementType,
       voiceProfile,
-      mediaContext,
+      mediaContext: "",              // already folded into enrichedInput
       mediaUrl: achievement.mediaUrl,
       mediaType: achievement.mediaType,
     });

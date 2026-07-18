@@ -1,42 +1,223 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { env } from '@/lib/env'
 
 // ---------------------------------------------------------------------------
-// Singleton clients
+// Singleton clients — built once at module load time
 // ---------------------------------------------------------------------------
 
-function getAnthropic() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' })
-}
+// Groq: PRIMARY — free tier, extremely fast (llama-3.3-70b on OpenAI-compatible API)
+const groq = env.GROQ_API_KEY
+  ? new OpenAI({
+      apiKey: env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    })
+  : null
 
-function getGroq() {
-  return new OpenAI({
-    apiKey: process.env.GROQ_API_KEY ?? 'not-configured',
-    baseURL: 'https://api.groq.com/openai/v1'
-  })
-}
+// Anthropic: FALLBACK — higher quality, costs money
+const anthropic = env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
+  : null
 
-function getGemini() {
-  const key = process.env.GEMINI_API_KEY
-  return key ? new GoogleGenerativeAI(key) : null
-}
+// Gemini: THIRD FALLBACK — free, 1500 req/day
+const gemini = process.env.GEMINI_API_KEY
+  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  : null
 
 // ---------------------------------------------------------------------------
-// Shared types (unchanged)
+// Model constants
+// ---------------------------------------------------------------------------
+
+const GROQ_TEXT_MODEL   = 'llama-3.3-70b-versatile'
+const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
+const ANTHROPIC_MODEL   = 'claude-sonnet-4-20250514'
+const GEMINI_MODEL      = 'gemini-2.5-flash'
+
+// ---------------------------------------------------------------------------
+// Shared types (existing callAI object-form interface — unchanged)
 // ---------------------------------------------------------------------------
 
 export type AiMessage = { role: 'user' | 'assistant'; content: string }
 
+/** Core options used by all existing callers (object-form). */
 export interface CallAIOptions {
   system: string
   prompt: string
   maxTokens?: number
   jsonMode?: boolean
+  /** Optional file attachment — enables multimodal processing */
+  fileUrl?: string
+  fileType?: 'image' | 'pdf' | 'document'
+}
+
+/** Returned by the new positional-arg callAI overload — tracks which provider responded. */
+export interface AIResponse {
+  text: string
+  provider: 'groq' | 'anthropic' | 'gemini'
 }
 
 // ---------------------------------------------------------------------------
-// callAI — Anthropic → Groq → Gemini fallback chain
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+async function fetchFileAsBase64(url: string): Promise<{ base64: string; mimeType: string }> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`File fetch failed: ${res.status} ${url}`)
+  const buffer = await res.arrayBuffer()
+  return {
+    base64: Buffer.from(buffer).toString('base64'),
+    mimeType: res.headers.get('content-type') ?? 'application/octet-stream',
+  }
+}
+
+/**
+ * Extract plain text from a PDF via pdfjs-dist (already installed).
+ * Used when sending a PDF to Groq, which has no native PDF support.
+ */
+async function extractTextFromPDF(fileUrl: string): Promise<string> {
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const response = await fetch(fileUrl)
+  if (!response.ok) throw new Error(`PDF fetch failed: ${response.status}`)
+  const arrayBuffer = await response.arrayBuffer()
+  const pdf = await getDocument({ data: arrayBuffer }).promise
+
+  const pages: string[] = []
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    pages.push(content.items.map((item: any) => item.str).join(' '))
+  }
+  return pages.join('\n\n')
+}
+
+// ---------------------------------------------------------------------------
+// Provider callers
+// ---------------------------------------------------------------------------
+
+async function callGroq(
+  system: string,
+  prompt: string,
+  opts?: Pick<CallAIOptions, 'maxTokens' | 'jsonMode' | 'fileUrl' | 'fileType'>
+): Promise<string> {
+  if (!groq) throw new Error('Groq not configured')
+
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: 'system', content: system },
+  ]
+
+  let useVision = false
+
+  if (opts?.fileUrl && opts?.fileType) {
+    if (opts.fileType === 'image') {
+      // Vision path — Groq supports images via llama-4-scout
+      const { base64, mimeType } = await fetchFileAsBase64(opts.fileUrl)
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
+          { type: 'text', text: prompt },
+        ],
+      })
+      useVision = true
+    } else if (opts.fileType === 'pdf') {
+      // Groq has no native PDF support — extract text first
+      const pdfText = await extractTextFromPDF(opts.fileUrl)
+      messages.push({
+        role: 'user',
+        content: `[Extracted PDF content:]\n${pdfText}\n\n[User message:]\n${prompt}`,
+      })
+    } else {
+      // document (Word etc.) — model receives the text prompt only
+      messages.push({ role: 'user', content: prompt })
+    }
+  } else {
+    messages.push({ role: 'user', content: prompt })
+  }
+
+  const model = useVision ? GROQ_VISION_MODEL : GROQ_TEXT_MODEL
+  const response = await groq.chat.completions.create({
+    model,
+    max_tokens: opts?.maxTokens ?? 1000,
+    ...(opts?.jsonMode && !useVision ? { response_format: { type: 'json_object' as const } } : {}),
+    messages,
+  })
+
+  const content = response.choices[0]?.message?.content
+  if (!content) throw new Error('Empty response from Groq')
+  console.log(`[AI] Groq success, model: ${model}`)
+  console.log('[AI] Groq response preview:', content.slice(0, 200))
+  return content
+}
+
+async function callAnthropic(
+  system: string,
+  prompt: string,
+  opts?: Pick<CallAIOptions, 'maxTokens' | 'fileUrl' | 'fileType'>
+): Promise<string> {
+  if (!anthropic) throw new Error('Anthropic not configured')
+
+  const userContent: Anthropic.MessageParam['content'] = []
+
+  if (opts?.fileUrl && opts?.fileType) {
+    const { base64, mimeType } = await fetchFileAsBase64(opts.fileUrl)
+
+    if (opts.fileType === 'image') {
+      userContent.push({
+        type: 'image',
+        source: { type: 'base64', media_type: mimeType as any, data: base64 },
+      })
+    } else if (opts.fileType === 'pdf') {
+      userContent.push({
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: base64 },
+      } as any)
+    }
+    // document (Word): no binary block — the AI sees the text prompt only
+  }
+
+  userContent.push({ type: 'text', text: prompt })
+
+  const response = await anthropic.messages.create({
+    model: ANTHROPIC_MODEL,
+    max_tokens: opts?.maxTokens ?? 1000,
+    system,
+    messages: [{ role: 'user', content: userContent }],
+  })
+
+  const block = response.content[0]
+  if (!block || block.type !== 'text') throw new Error('Unexpected response type from Anthropic')
+  console.log('[AI] Anthropic success, tokens:', response.usage.output_tokens)
+  return block.text
+}
+
+async function callGemini(
+  system: string,
+  prompt: string,
+  opts?: Pick<CallAIOptions, 'maxTokens' | 'jsonMode'>
+): Promise<string> {
+  if (!gemini) throw new Error('Gemini not configured')
+
+  const model = gemini.getGenerativeModel({
+    model: GEMINI_MODEL,
+    generationConfig: {
+      maxOutputTokens: opts?.maxTokens ?? 1000,
+      ...(opts?.jsonMode ? { responseMimeType: 'application/json' } : {}),
+    },
+  })
+
+  const fullPrompt = system ? `${system}\n\n${prompt}` : prompt
+  const result = await model.generateContent(fullPrompt)
+  const text = result.response.text()
+  if (!text) throw new Error('Empty response from Gemini')
+  console.log('[AI] Gemini 2.5 Flash success')
+  console.log('[AI] Gemini response preview:', text.slice(0, 200))
+  return text
+}
+
+// ---------------------------------------------------------------------------
+// callAI — main exported function (existing object-form signature preserved)
+// Fallback chain: Groq → Anthropic → Gemini
 // ---------------------------------------------------------------------------
 
 export async function callAI({
@@ -44,87 +225,52 @@ export async function callAI({
   prompt,
   maxTokens = 1000,
   jsonMode = false,
+  fileUrl,
+  fileType,
 }: CallAIOptions): Promise<string> {
-  // Guard: at least one key must be configured
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
-    throw new Error('No AI API keys configured. Add GROQ_API_KEY or GEMINI_API_KEY to your environment.')
+  if (!groq && !anthropic && !gemini) {
+    throw new Error(
+      'No AI provider available. Set GROQ_API_KEY in .env.local (free at console.groq.com).'
+    )
   }
 
-  // ── 1. Try Anthropic (primary, when key is set) ──────────────────────────
-  if (process.env.ANTHROPIC_API_KEY) {
+  // ── 1. Groq (primary — free, fast) ──────────────────────────────────────
+  if (groq) {
     try {
-      const response = await getAnthropic().messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: maxTokens,
-        system,
-        messages: [{ role: 'user', content: prompt }],
-      })
-      const text = response.content[0]
-      if (text.type !== 'text') throw new Error('Unexpected response type from Anthropic')
-      console.log('[AI] Anthropic success, tokens:', response.usage.output_tokens)
-      return text.text
-    } catch (error: unknown) {
-      const isRateLimit =
-        error instanceof Anthropic.APIError &&
-        [429, 402, 529].includes((error as { status: number }).status)
-      if (isRateLimit) {
-        console.warn('[AI] Anthropic rate limited, trying Groq')
+      return await callGroq(system, prompt, { maxTokens, jsonMode, fileUrl, fileType })
+    } catch (err: any) {
+      const isRetryable =
+        err?.status === 429 || err?.status === 503 || err?.message?.includes('rate_limit')
+      if (isRetryable) {
+        console.warn('[AI] Groq rate limited, falling back to Anthropic')
       } else {
-        console.error('[AI] Anthropic error:', error)
-        // Fall through to Groq regardless — we don't want one bad call to block the pipeline
+        console.error('[AI] Groq error:', err?.message)
+        // Fall through — don't let one bad call block the whole pipeline
       }
     }
   }
 
-  // ── 2. Try Groq (Llama 3.3 70B — free, OpenAI-compatible) ───────────────
-  if (process.env.GROQ_API_KEY) {
+  // ── 2. Anthropic (fallback — better quality) ─────────────────────────────
+  if (anthropic) {
     try {
-      const response = await getGroq().chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: maxTokens,
-        // Force JSON output when jsonMode is true — eliminates markdown-wrapped JSON failures
-        ...(jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
-      })
-      const content = response.choices[0]?.message?.content
-      if (!content) throw new Error('Empty response from Groq')
-      console.log('[AI] Groq success, model: llama-3.3-70b-versatile')
-      // Log first 200 chars so you can see real AI output in Vercel logs
-      console.log('[AI] Groq response preview:', content.slice(0, 200))
-      return content
-    } catch (error: unknown) {
-      console.error('[AI] Groq failed:', error)
-      // Fall through to Gemini
+      return await callAnthropic(system, prompt, { maxTokens, fileUrl, fileType })
+    } catch (err: any) {
+      const isRetryable =
+        err instanceof Anthropic.APIError && [429, 402, 529].includes(err.status ?? 0)
+      if (isRetryable) {
+        console.warn('[AI] Anthropic rate limited, falling back to Gemini')
+      } else {
+        console.error('[AI] Anthropic error:', err?.message)
+      }
     }
   }
 
-  // ── 3. Try Gemini 2.5 Flash (free fallback, 1500 req/day) ───────────────
-  const geminiClient = getGemini()
-  if (geminiClient && process.env.GEMINI_API_KEY) {
+  // ── 3. Gemini (third fallback — free, 1500 req/day) ──────────────────────
+  if (gemini) {
     try {
-      const model = geminiClient.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: {
-          maxOutputTokens: maxTokens,
-          // Tell Gemini to return JSON when jsonMode is true
-          ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
-        },
-      })
-
-      // Gemini doesn't have a separate system role — prepend it to the user prompt
-      const fullPrompt = system ? `${system}\n\n${prompt}` : prompt
-      const result = await model.generateContent(fullPrompt)
-      const text = result.response.text()
-
-      if (!text) throw new Error('Empty response from Gemini')
-      console.log('[AI] Gemini 2.5 Flash success')
-      console.log('[AI] Gemini response preview:', text.slice(0, 200))
-      return text
-    } catch (error) {
-      console.error('[AI] Gemini also failed:', error)
+      return await callGemini(system, prompt, { maxTokens, jsonMode })
+    } catch (err: any) {
+      console.error('[AI] Gemini also failed:', err?.message)
     }
   }
 
@@ -132,18 +278,15 @@ export async function callAI({
 }
 
 // ---------------------------------------------------------------------------
-// Backward-compat getters (kept so existing callers don't break)
+// Backward-compat exports (unchanged — existing callers must not break)
 // ---------------------------------------------------------------------------
 
 export function getAnthropicClient() {
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured')
-  return getAnthropic()
+  if (!anthropic) throw new Error('ANTHROPIC_API_KEY is not configured')
+  return anthropic
 }
 
-// ---------------------------------------------------------------------------
-// callAi — legacy multi-turn interface, delegates to callAI (unchanged)
-// ---------------------------------------------------------------------------
-
+// Legacy multi-turn interface — delegates to callAI
 export interface AiCallOptions {
   messages: AiMessage[]
   systemPrompt?: string

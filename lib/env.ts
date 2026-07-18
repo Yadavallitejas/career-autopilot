@@ -24,10 +24,9 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
-  // AI
+  // AI — at least one of GROQ_API_KEY or ANTHROPIC_API_KEY must be set
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  XAI_API_KEY: z.string().min(1).optional(),
-  XAI_BASE_URL: z.string().url().default("https://api.x.ai/v1"),
+  GROQ_API_KEY: z.string().min(1).optional(),
 
   // Email
   RESEND_API_KEY: z.string().min(1).optional(),
@@ -52,6 +51,16 @@ const envSchema = z.object({
 
   // Encryption
   ENCRYPTION_KEY: z.string().min(32),
+}).superRefine((data, ctx) => {
+  if (!data.GROQ_API_KEY && !data.ANTHROPIC_API_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "At least one AI key is required: set GROQ_API_KEY (free, from console.groq.com) " +
+        "or ANTHROPIC_API_KEY in your .env.local",
+      path: ["GROQ_API_KEY"],
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

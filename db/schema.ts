@@ -88,6 +88,11 @@ export const achievements = pgTable(
     portfolioReplaceSuggestion: text("portfolio_replace_suggestion"),
     mediaUrl: text("media_url"),
     mediaType: text("media_type"), // 'image' | 'pdf'
+    // File attachment fields — Supabase Storage
+    fileUrl: text("file_url"),                   // nullable, Supabase Storage URL
+    fileType: text("file_type"),                 // nullable, 'image' | 'pdf' | 'document'
+    fileName: text("file_name"),                 // nullable, original filename
+    extractedContent: text("extracted_content"), // nullable, AI-extracted text from file
     status: achievementStatusEnum("status").notNull().default("processing"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

@@ -16,6 +16,9 @@ const createAchievementSchema = z.object({
     .string()
     .min(10, "Achievement must be at least 10 characters.")
     .max(2000, "Achievement must be 2000 characters or fewer."),
+  fileUrl: z.string().url().optional(),
+  fileType: z.enum(["image", "pdf", "document"]).optional(),
+  fileName: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -50,6 +53,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // 3. Parse + validate body (supports both JSON and multipart/form-data)
     let rawInput: string;
     let mediaFile: File | null = null;
+    let fileUrl: string | undefined;
+    let fileType: "image" | "pdf" | "document" | undefined;
+    let fileName: string | undefined;
 
     const contentType = req.headers.get("content-type") ?? "";
     try {
@@ -62,12 +68,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       } else {
         const body = await req.json();
         rawInput = body.rawInput;
+        fileUrl = body.fileUrl;
+        fileType = body.fileType;
+        fileName = body.fileName;
       }
     } catch {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    const parsed = createAchievementSchema.safeParse({ rawInput });
+    const parsed = createAchievementSchema.safeParse({ rawInput, fileUrl, fileType, fileName });
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.errors[0]?.message ?? "Validation failed" },
@@ -75,7 +84,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    ({ rawInput } = parsed.data);
+    ({ rawInput, fileUrl, fileType, fileName } = parsed.data);
 
     // 4. Free tier check
     if (user.plan === "free") {
@@ -135,6 +144,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         userId: user.id,
         rawInput,
         ...(mediaUrl ? { mediaUrl, mediaType } : {}),
+        ...(fileUrl ? { fileUrl } : {}),
+        ...(fileType ? { fileType } : {}),
+        ...(fileName ? { fileName } : {}),
         status: "processing",
       })
       .returning({ id: achievements.id });
