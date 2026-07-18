@@ -173,6 +173,9 @@ export const portfolioConfig = pgTable("portfolio_config", {
   template: text("template").notNull().default("minimal"),
   platformProjectId: text("platform_project_id"),
   lastDeployed: timestamp("last_deployed"),
+  /** 'none' | 'deploying' | 'live' | 'failed' */
+  deployStatus: text("deploy_status").default("none"),
+  deployError: text("deploy_error"),
 });
 
 // ---------------------------------------------------------------------------

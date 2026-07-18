@@ -5,10 +5,21 @@ import { users, connectedAccounts, portfolioConfig } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getRepoContents } from "@/lib/github/client";
 import { detectProjectType } from "@/lib/portfolio/detect";
+import { enqueuePortfolioDeployJob } from "@/lib/queue/qstash";
 
 // ---------------------------------------------------------------------------
 // POST /api/portfolio/deploy
 // ---------------------------------------------------------------------------
+//
+// No longer runs the deployment synchronously (would timeout at 10s).
+// Instead:
+//   1. Resolves the GitHub token + detects project type (fast)
+//   2. Upserts portfolio_config with deployStatus = 'deploying'
+//   3. Pushes a portfolio_deploy job to QStash
+//   4. Returns immediately with { status: 'deploying' }
+//
+// The QStash handler (/api/webhooks/qstash) does the actual deployment
+// and writes the final deployStatus / deployUrl back to the DB.
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const { userId: clerkId } = auth();
@@ -26,7 +37,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Parse body
+  // ── Parse body ─────────────────────────────────────────────────────────────
   let repoOwner: string;
   let repoName: string;
   let confirmed: boolean;
@@ -48,7 +59,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Resolve GitHub token
+  // ── Resolve GitHub token ───────────────────────────────────────────────────
   const [account] = await db
     .select({
       accessToken: connectedAccounts.accessToken,
@@ -65,7 +76,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!account?.accessToken) {
     return NextResponse.json(
-      { error: "GitHub account not connected" },
+      { error: "GitHub account not connected. Connect GitHub in Settings first." },
       { status: 403 }
     );
   }
@@ -74,20 +85,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const { decrypt } = await import("@/lib/encryption");
     decryptedToken = decrypt(account.accessToken);
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to decrypt token. Please reconnect your account." },
       { status: 401 }
     );
   }
 
-  // Re-detect (fresh detection on deploy to avoid stale client state)
-  const contentsResult = await getRepoContents(
-    repoOwner,
-    repoName,
-    "",
-    decryptedToken
-  );
+  // ── Detect project type (fast — a couple of GitHub API calls) ─────────────
+  const contentsResult = await getRepoContents(repoOwner, repoName, "", decryptedToken);
 
   if ("error" in contentsResult) {
     return NextResponse.json(
@@ -99,12 +105,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let packageJsonContent: string | undefined;
   const pkgEntry = contentsResult.find((f) => f.path === "package.json");
   if (pkgEntry) {
-    const fileResult = await getRepoContents(
-      repoOwner,
-      repoName,
-      "package.json",
-      decryptedToken
-    );
+    const fileResult = await getRepoContents(repoOwner, repoName, "package.json", decryptedToken);
     if (!("error" in fileResult) && fileResult[0]?.content) {
       packageJsonContent = fileResult[0].content;
     }
@@ -112,22 +113,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const detection = await detectProjectType(contentsResult, packageJsonContent);
 
-  // ── Route to platform deployer ────────────────────────────────────────────
-  // Platform deployers are currently stubs — we record the intent in the DB
-  // and return a "pending" status. When deployers are implemented they will
-  // return a live URL directly.
+  const repoHtmlUrl = `https://github.com/${repoOwner}/${repoName}`;
 
-  const repoFullName = `${repoOwner}/${repoName}`;
-  const repoHtmlUrl = `https://github.com/${repoFullName}`;
-
-  // Generate a deterministic placeholder deploy URL for the UI to poll against
-  const deployUrlPlaceholder = buildPlaceholderUrl(
-    detection.deployTarget,
-    repoName,
-    account.platformUsername || repoOwner
-  );
-
-  // Upsert portfolio_config
+  // ── Upsert portfolio_config — mark as deploying ───────────────────────────
   await db
     .insert(portfolioConfig)
     .values({
@@ -135,9 +123,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       githubRepoUrl: repoHtmlUrl,
       deployPlatform: detection.deployTarget,
       projectType: detection.projectType,
-      deployUrl: deployUrlPlaceholder,
+      deployUrl: null,
+      deployStatus: "deploying",
+      deployError: null,
       template: "minimal",
-      lastDeployed: new Date(),
     })
     .onConflictDoUpdate({
       target: portfolioConfig.userId,
@@ -145,45 +134,51 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         githubRepoUrl: repoHtmlUrl,
         deployPlatform: detection.deployTarget,
         projectType: detection.projectType,
-        deployUrl: deployUrlPlaceholder,
-        lastDeployed: new Date(),
+        deployStatus: "deploying",
+        deployError: null,
       },
     });
 
-  // Attempt actual platform-specific deploy (stubs throw — catch gracefully)
-  let liveDeployUrl = deployUrlPlaceholder;
+  // ── Push to QStash ────────────────────────────────────────────────────────
   try {
-    const { deployPortfolio } = await import("@/lib/portfolio/deploy");
-    const deployResult = await deployPortfolio(
-      repoFullName,
-      detection,
-      decryptedToken
-    );
-    liveDeployUrl = deployResult.url;
-
-    // Update with real URL
+    const messageId = await enqueuePortfolioDeployJob({
+      type: "portfolio_deploy",
+      userId: user.id,
+      repoOwner,
+      repoName,
+    });
+    console.log(`[portfolio/deploy] QStash job queued — messageId=${messageId}`);
+  } catch (qstashErr) {
+    // QStash failure: update status to failed so the UI doesn't poll forever
     await db
       .update(portfolioConfig)
-      .set({ deployUrl: liveDeployUrl, lastDeployed: new Date() })
+      .set({
+        deployStatus: "failed",
+        deployError: "Failed to queue deployment job. Please try again.",
+      })
       .where(eq(portfolioConfig.userId, user.id));
-  } catch (deployErr) {
-    // Platform deployer not yet implemented — return pending status
-    console.warn(
-      "[portfolio/deploy] Deployer threw (stub?):",
-      (deployErr as Error).message
+
+    console.error("[portfolio/deploy] QStash enqueue failed:", qstashErr);
+    return NextResponse.json(
+      { error: "Failed to queue deployment. Please try again." },
+      { status: 500 }
     );
   }
 
+  // ── Return immediately ────────────────────────────────────────────────────
   return NextResponse.json({
+    status: "deploying",
     platform: detection.deployTarget,
-    deployUrl: liveDeployUrl,
-    status: liveDeployUrl === deployUrlPlaceholder ? "pending" : "live",
+    message: "Deployment started. This usually takes 1–3 minutes.",
   });
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/portfolio/deploy/status
+// GET /api/portfolio/deploy — status check (polled by the UI every 5s)
 // ---------------------------------------------------------------------------
+//
+// Reads deployStatus and deployError directly from DB — the QStash handler
+// writes the final values once deployment completes or fails.
 
 export async function GET(_req: NextRequest): Promise<NextResponse> {
   const { userId: clerkId } = auth();
@@ -206,39 +201,34 @@ export async function GET(_req: NextRequest): Promise<NextResponse> {
       deployUrl: portfolioConfig.deployUrl,
       deployPlatform: portfolioConfig.deployPlatform,
       lastDeployed: portfolioConfig.lastDeployed,
+      deployStatus: portfolioConfig.deployStatus,
+      deployError: portfolioConfig.deployError,
     })
     .from(portfolioConfig)
     .where(eq(portfolioConfig.userId, user.id))
     .limit(1);
 
-  if (!cfg?.deployUrl) {
+  if (!cfg) {
     return NextResponse.json({ status: "not_started" });
   }
 
-  // Check if the deploy URL is reachable (HEAD request — non-blocking)
-  let status: "live" | "pending" | "failed" = "pending";
-  try {
-    const probe = await fetch(cfg.deployUrl, {
-      method: "HEAD",
-      cache: "no-store",
-      signal: AbortSignal.timeout(4000),
-    });
-    if (probe.ok) status = "live";
-    else if (probe.status >= 500) status = "failed";
-  } catch {
-    // Network error or timeout — still pending
-  }
+  const status = (cfg.deployStatus ?? "none") as
+    | "none"
+    | "deploying"
+    | "live"
+    | "failed";
 
   return NextResponse.json({
     status,
     deployUrl: cfg.deployUrl,
     platform: cfg.deployPlatform,
     lastDeployed: cfg.lastDeployed,
+    deployError: cfg.deployError,
   });
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers (kept for legacy callers — unused now that detection is inline)
 // ---------------------------------------------------------------------------
 
 function buildPlaceholderUrl(
@@ -256,10 +246,13 @@ function buildPlaceholderUrl(
       return `https://${slug}.onrender.com`;
     case "railway":
       return `https://${slug}.railway.app`;
-    case "github-pages":
+    case "github-pages": {
       const username = (ownerUsername || slug).toLowerCase();
       return `https://${username}.github.io/${repoName}`;
+    }
     default:
       return `https://${slug}.vercel.app`;
   }
 }
+
+

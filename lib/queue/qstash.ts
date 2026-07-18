@@ -36,3 +36,28 @@ export async function enqueueAchievementJob(
 
   return result.messageId;
 }
+
+export interface PortfolioDeployJob {
+  type: "portfolio_deploy";
+  userId: string;
+  repoOwner: string;
+  repoName: string;
+}
+
+/**
+ * Publishes a portfolio deployment job to QStash.
+ * The heavy GitHub Pages / Vercel / Netlify API calls run in the
+ * background so the deploy route can return immediately.
+ */
+export async function enqueuePortfolioDeployJob(
+  job: PortfolioDeployJob
+): Promise<string> {
+  const appUrl = env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const client = getQstash();
+  const result = await client.publishJSON({
+    url: `${appUrl}/api/webhooks/qstash`,
+    body: job,
+    retries: 2,
+  });
+  return result.messageId;
+}

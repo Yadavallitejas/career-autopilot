@@ -871,10 +871,11 @@ function DeployStep({
   onSuccess: (url: string) => void;
   onError: (msg: string) => void;
 }) {
-  const [status, setStatus] = useState<"deploying" | "polling" | "done" | "failed">(
-    "deploying"
+  const [status, setStatus] = useState<"enqueueing" | "polling" | "done" | "failed">(
+    "enqueueing"
   );
   const [deployUrl, setDeployUrl] = useState<string | null>(null);
+  const [deployError, setDeployError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
 
@@ -896,57 +897,63 @@ function DeployStep({
         });
 
         const data = (await res.json()) as
-          | { platform: string; deployUrl: string; status: string }
+          | { status: string; platform?: string; message?: string }
           | { error: string };
 
         if ("error" in data) {
           setStatus("failed");
+          setDeployError(data.error);
           onError(data.error);
           return;
         }
 
-        setDeployUrl(data.deployUrl);
+        // API returned 'deploying' — QStash job enqueued, start polling DB
         setStatus("polling");
 
-        // Poll for live status
         let attempts = 0;
+        const maxAttempts = 36; // 36 × 5s = 3 minutes
         pollRef.current = setInterval(async () => {
           attempts++;
-          if (attempts > 24) {
-            // 2-minute timeout (24 × 5s)
+          if (attempts > maxAttempts) {
             clearInterval(pollRef.current!);
+            const msg = "Deployment timed out after 3 minutes. Please try again.";
             setStatus("failed");
-            onError("Deployment timed out");
+            setDeployError(msg);
+            onError(msg);
             return;
           }
 
           try {
             const pollRes = await fetch("/api/portfolio/deploy/status");
             const pollData = (await pollRes.json()) as
-              | { status: string; deployUrl?: string }
+              | { status: string; deployUrl?: string | null; deployError?: string | null }
               | { error: string };
 
             if ("error" in pollData) return; // transient — keep polling
 
-            if (pollData.status === "live" || pollData.status === "ready") {
+            if (pollData.status === "live") {
               clearInterval(pollRef.current!);
-              const url = pollData.deployUrl ?? data.deployUrl;
-              setDeployUrl(url);
+              const url = pollData.deployUrl ?? null;
+              if (url) setDeployUrl(url);
               setStatus("done");
-              onSuccess(url);
+              onSuccess(url ?? "");
             } else if (pollData.status === "failed") {
               clearInterval(pollRef.current!);
+              const errMsg = pollData.deployError ?? "Deployment failed on the platform.";
               setStatus("failed");
-              onError("Deployment failed on the platform");
+              setDeployError(errMsg);
+              onError(errMsg);
             }
-            // Otherwise keep polling
+            // 'deploying' → keep polling
           } catch {
             // transient network error — keep polling
           }
         }, 5000);
       } catch {
+        const msg = "Network error starting deployment.";
         setStatus("failed");
-        onError("Network error starting deployment");
+        setDeployError(msg);
+        onError(msg);
       }
     }
 
@@ -961,7 +968,7 @@ function DeployStep({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] gap-6 p-6 text-center">
-      {(status === "deploying" || status === "polling") && (
+      {(status === "enqueueing" || status === "polling") && (
         <>
           {/* Animated deploy indicator */}
           <div className="relative w-20 h-20">
@@ -973,11 +980,17 @@ function DeployStep({
           </div>
           <div>
             <p className="text-base font-semibold text-foreground mb-1">
-              Deploying to {platform}…
+              {status === "enqueueing" ? "Starting deployment…" : `Deploying to ${platform}…`}
             </p>
             <p className="text-xs text-muted-foreground">
-              This takes ~{detection.estimatedDeployMinutes} min. Hang tight.
+              {status === "polling"
+                ? `This takes ~${detection.estimatedDeployMinutes} min. Running in the background.`
+                : "Setting up your deployment…"}
             </p>
+          </div>
+          {/* Indeterminate progress bar */}
+          <div className="w-56 h-1 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-500 rounded-full animate-[shimmer_1.5s_infinite] w-1/2" />
           </div>
           {deployUrl && (
             <p className="text-xs text-muted-foreground font-mono break-all max-w-sm">
@@ -1007,9 +1020,14 @@ function DeployStep({
       )}
 
       {status === "failed" && (
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-3 max-w-sm">
           <AlertTriangle size={40} className="text-red-400" />
-          <p className="text-sm text-muted-foreground">Deployment failed</p>
+          <div>
+            <p className="text-sm font-semibold text-foreground mb-1">Deployment failed</p>
+            {deployError && (
+              <p className="text-xs text-muted-foreground">{deployError}</p>
+            )}
+          </div>
         </div>
       )}
     </div>

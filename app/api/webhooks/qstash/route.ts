@@ -63,19 +63,136 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   logStep("Signature verified", pipelineStart);
 
   // ─── Parse payload ───────────────────────────────────────────────────────
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(body) as Record<string, unknown>;
+    if (!payload || typeof payload !== "object") throw new Error("Not an object");
+  } catch (parseErr) {
+    console.error("[qstash] Invalid payload:", parseErr);
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  // ─── Route by job type ───────────────────────────────────────────────────
+  // portfolio_deploy jobs have { type: 'portfolio_deploy', userId, repoOwner, repoName }
+  // achievement jobs have { achievementId, userId } (no type field)
+
+  if (payload.type === "portfolio_deploy") {
+    const userId = payload.userId as string;
+    const repoOwner = payload.repoOwner as string;
+    const repoName = payload.repoName as string;
+
+    if (!userId || !repoOwner || !repoName) {
+      console.error("[qstash/portfolio_deploy] Missing fields:", payload);
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
+
+    console.log(`[qstash/portfolio_deploy] Starting: ${repoOwner}/${repoName} userId=${userId}`);
+
+    try {
+      // ── Fetch user + GitHub token ─────────────────────────────────────────
+      const [userRow] = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      const [ghAccount] = await db
+        .select({ accessToken: connectedAccounts.accessToken })
+        .from(connectedAccounts)
+        .where(
+          and(
+            eq(connectedAccounts.userId, userId),
+            eq(connectedAccounts.platform, "github")
+          )
+        )
+        .limit(1);
+
+      if (!ghAccount?.accessToken) {
+        throw new Error("GitHub account not connected. Connect GitHub in Settings first.");
+      }
+
+      const { decrypt } = await import("@/lib/encryption");
+      const ghToken = decrypt(ghAccount.accessToken);
+
+      // ── Fetch repo contents + detect project type ─────────────────────────
+      const { getRepoContents } = await import("@/lib/github/client");
+      const contents = await getRepoContents(repoOwner, repoName, "", ghToken);
+
+      if ("error" in contents) {
+        throw new Error("GitHub rate limit reached — try again later.");
+      }
+
+      let packageJsonContent: string | undefined;
+      const pkgEntry = contents.find((f) => f.path === "package.json");
+      if (pkgEntry) {
+        const fileResult = await getRepoContents(repoOwner, repoName, "package.json", ghToken);
+        if (!("error" in fileResult) && fileResult[0]?.content) {
+          packageJsonContent = fileResult[0].content;
+        }
+      }
+
+      const { detectProjectType } = await import("@/lib/portfolio/detect");
+      const detection = await detectProjectType(contents, packageJsonContent);
+
+      console.log(`[qstash/portfolio_deploy] Detected: ${detection.projectType} → ${detection.deployTarget}`);
+
+      // ── Deploy ────────────────────────────────────────────────────────────
+      const { deployPortfolio } = await import("@/lib/portfolio/deploy");
+      const result = await deployPortfolio(repoOwner, repoName, detection, ghToken);
+
+      console.log(`[qstash/portfolio_deploy] Deployed → ${result.url}`);
+
+      // ── Persist success ───────────────────────────────────────────────────
+      await db
+        .update(portfolioConfig)
+        .set({
+          deployUrl: result.url,
+          deployStatus: "live",
+          deployPlatform: result.platform,
+          projectType: detection.projectType,
+          lastDeployed: new Date(),
+          deployError: null,
+        })
+        .where(eq(portfolioConfig.userId, userId));
+
+      // ── Send success email (non-fatal) ────────────────────────────────────
+      if (userRow?.email) {
+        const appUrl = env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+        sendEmail({
+          to: userRow.email,
+          subject: "🚀 Your portfolio is live! — Career Autopilot",
+          react: React.createElement(AchievementCompleteEmail, {
+            userName: userRow.email.split("@")[0],
+            achievementType: "portfolio",
+            reviewUrl: `${appUrl}/portfolio`,
+            resumeUpdated: false,
+            portfolioUpdated: true,
+          }),
+        }).catch((err) => console.error("[qstash/portfolio_deploy] Email failed:", err));
+      }
+
+    } catch (deployErr) {
+      const errMsg = (deployErr as Error).message ?? "Deployment failed";
+      console.error("[qstash/portfolio_deploy] Failed:", errMsg);
+
+      await db
+        .update(portfolioConfig)
+        .set({ deployStatus: "failed", deployError: errMsg })
+        .where(eq(portfolioConfig.userId, userId));
+    }
+
+    return NextResponse.json({ ok: true });
+  }
+
+  // ─── Achievement job (original pipeline) ────────────────────────────────
   let achievementId: string;
   let userId: string;
   try {
-    const payload = JSON.parse(body) as {
-      achievementId: string;
-      userId: string;
-    };
-    achievementId = payload.achievementId;
-    userId = payload.userId;
-
+    achievementId = payload.achievementId as string;
+    userId = payload.userId as string;
     if (!achievementId || !userId) throw new Error("Missing required fields");
   } catch (parseErr) {
-    console.error("[qstash] Invalid payload:", parseErr);
+    console.error("[qstash] Invalid achievement payload:", parseErr);
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
@@ -107,6 +224,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   logStep("Step 1: Ownership verified", pipelineStart);
+
+  // Log file attachment status immediately so it's visible even if extraction fails
+  const fileUrl  = achievement.fileUrl  ?? undefined;
+  const fileType = (achievement.fileType ?? undefined) as "image" | "pdf" | "document" | undefined;
+  console.log(
+    "[QStash] File attached:",
+    fileUrl ? `${fileType} — ${achievement.fileName ?? "unknown"}` : "none"
+  );
 
   // ─── Step 2: Fetch context ────────────────────────────────────────────────
   logStep("Step 2: Fetching resume + portfolio + user rules context", pipelineStart);
@@ -188,11 +313,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let extractedCertificate: ExtractedCertificate | null = null;
   let enrichedInput = achievement.rawInput;
 
-  if (achievement.fileUrl && achievement.fileType) {
+  if (fileUrl && fileType) {
     try {
-      extractedCertificate = await extractCertificateContent(
-        achievement.fileUrl,
-        achievement.fileType as "image" | "pdf" | "document"
+      console.log("[QStash] Extracting content from file...");
+      extractedCertificate = await extractCertificateContent(fileUrl, fileType);
+
+      console.log(
+        "[QStash] Extracted cert:",
+        extractedCertificate.certificationName,
+        "from",
+        extractedCertificate.issuingOrganization
       );
 
       // Persist extracted content so it can be surfaced in the UI / later calls
@@ -205,10 +335,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       enrichedInput = buildEnrichedInput(achievement.rawInput, extractedCertificate);
 
       console.log(
-        `[Pipeline] File extracted (${achievement.fileType}), enrichedInput length: ${enrichedInput.length}`
+        `[QStash] Extraction complete (${fileType}), enrichedInput length: ${enrichedInput.length}`
       );
     } catch (err) {
-      console.error("[Pipeline] File extraction failed (non-fatal):", err);
+      console.error("[QStash] Extraction failed, using text only:", err);
       // Degrade gracefully — pipeline continues with rawInput only
     }
   } else if (achievement.mediaUrl && achievement.mediaType) {

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Sparkles, FileText, Share2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Sparkles, FileText, Share2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -368,34 +368,7 @@ export function AchievementDetail({
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Resume Integration</h3>
               </div>
 
-              {user.resumeSource === "uploaded" && achievement.classifiedResumeWorthy === true ? (
-                <Card className="border-amber-500/20 bg-amber-500/10">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="text-sm font-medium text-amber-600 dark:text-amber-400">We have a resume suggestion for you</div>
-                    <div className="text-xs text-muted-foreground">
-                      Since you uploaded your own resume, we won't change its formatting automatically.
-                    </div>
-                    <div className="rounded bg-muted p-3 text-sm text-foreground">
-                      <span className="text-muted-foreground">Add to "{achievement.resumeSection || "Experience"}":</span><br/>
-                      {achievement.resumeBullet}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Button size="sm" variant="outline" className="w-full border-border text-xs font-bold hover:bg-accent hover:text-foreground" onClick={handleCopyBullet} disabled={isPending}>
-                        Copy this text
-                      </Button>
-                      <Button size="sm" variant="outline" className="w-full border-border text-xs font-bold hover:bg-accent hover:text-foreground" onClick={handleGenerateWithTemplate} disabled={isPending}>
-                        {isPending ? (
-                          <Loader2 size={13} className="animate-spin mr-1.5" />
-                        ) : null}
-                        Generate a new PDF with our template instead
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Tip: paste the copied text into your own resume, then re-upload it to keep it current.
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : achievement.classifiedResumeWorthy === true ? (
+              {achievement.classifiedResumeWorthy === true ? (
                 <div className="border border-emerald-500/20 rounded-lg p-4 bg-emerald-500/5 space-y-3">
                   <div>
                     <div className="text-xs text-emerald-400 font-semibold uppercase tracking-wider mb-1">Added to resume</div>
@@ -408,6 +381,19 @@ export function AchievementDetail({
                       </div>
                     )}
                   </div>
+
+                  {/* Info note for uploaded-resume users */}
+                  {user.resumeSource === "uploaded" && (
+                    <div className="flex items-start gap-2 bg-sky-500/8 border border-sky-500/20 rounded-lg px-3 py-2.5">
+                      <Info size={13} className="text-sky-400 mt-0.5 shrink-0" />
+                      <p className="text-xs text-sky-300 leading-relaxed">
+                        We&apos;ve extracted your resume content and generated an updated PDF automatically.
+                        Your original file is preserved — download the new version from the{" "}
+                        <Link href="/resume" className="underline underline-offset-2 hover:text-sky-200 transition-colors">Resume page</Link>.
+                      </p>
+                    </div>
+                  )}
+
                   <Button
                     size="sm"
                     variant="ghost"
