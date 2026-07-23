@@ -1,5 +1,7 @@
 // CRITICAL: @react-pdf/renderer needs full Node.js — edge runtime will crash.
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 30
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'

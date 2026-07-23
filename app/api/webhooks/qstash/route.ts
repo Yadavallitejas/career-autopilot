@@ -136,9 +136,52 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       console.log(`[qstash/portfolio_deploy] Detected: ${detection.projectType} → ${detection.deployTarget}`);
 
+      // ── Generate portfolio HTML from resume data ───────────────────────────
+      let htmlContent = "";
+      try {
+        // Fetch current resume + portfolio template preference in parallel
+        const [resumeRows, portfolioCfgRows] = await Promise.all([
+          db
+            .select({ structuredData: resumeVersions.structuredData, rawText: resumeVersions.rawText })
+            .from(resumeVersions)
+            .where(and(eq(resumeVersions.userId, userId), eq(resumeVersions.isCurrent, true)))
+            .limit(1),
+          db
+            .select({ template: portfolioConfig.template })
+            .from(portfolioConfig)
+            .where(eq(portfolioConfig.userId, userId))
+            .limit(1),
+        ]);
+
+        const resumeRow = resumeRows[0];
+        const template = (portfolioCfgRows[0]?.template ?? "minimal") as "minimal" | "developer" | "creative";
+
+        if (resumeRow?.structuredData) {
+          // Use the AI-structured resume data to build a rich portfolio page
+          const { buildMinimalHtml, buildDeveloperHtml, buildCreativeHtml } =
+            await import("@/lib/portfolio/generate-from-resume");
+
+          const data = resumeRow.structuredData as Parameters<typeof buildMinimalHtml>[0];
+          if (template === "developer") {
+            htmlContent = buildDeveloperHtml(data);
+          } else if (template === "creative") {
+            htmlContent = buildCreativeHtml(data);
+          } else {
+            htmlContent = buildMinimalHtml(data);
+          }
+          console.log(`[qstash/portfolio_deploy] Generated ${template} HTML (${htmlContent.length} chars)`);
+        } else {
+          console.log("[qstash/portfolio_deploy] No structured resume data — using placeholder HTML");
+        }
+      } catch (htmlErr) {
+        console.warn("[qstash/portfolio_deploy] HTML generation failed (non-fatal):", htmlErr);
+        // Deployment continues — pushIndexHtmlToGhPages will use a placeholder
+      }
+
       // ── Deploy ────────────────────────────────────────────────────────────
       const { deployPortfolio } = await import("@/lib/portfolio/deploy");
-      const result = await deployPortfolio(repoOwner, repoName, detection, ghToken);
+      const result = await deployPortfolio(repoOwner, repoName, detection, ghToken, htmlContent);
+
 
       console.log(`[qstash/portfolio_deploy] Deployed → ${result.url}`);
 

@@ -65,7 +65,7 @@ function getSupabase() {
 // HTML templates
 // ---------------------------------------------------------------------------
 
-function buildMinimalHtml(data: ResumePortfolioData): string {
+export function buildMinimalHtml(data: ResumePortfolioData): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
@@ -258,7 +258,7 @@ function buildMinimalHtml(data: ResumePortfolioData): string {
 </html>`
 }
 
-function buildDeveloperHtml(data: ResumePortfolioData): string {
+export function buildDeveloperHtml(data: ResumePortfolioData): string {
   // Same structure as minimal but with dark theme + terminal aesthetic
   const minimal = buildMinimalHtml(data)
   return minimal.replace(
@@ -273,7 +273,7 @@ function buildDeveloperHtml(data: ResumePortfolioData): string {
   )
 }
 
-function buildCreativeHtml(data: ResumePortfolioData): string {
+export function buildCreativeHtml(data: ResumePortfolioData): string {
   // Gradient accent header variation
   const base = buildMinimalHtml(data)
   return base.replace(

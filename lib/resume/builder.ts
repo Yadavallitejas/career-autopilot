@@ -1,13 +1,38 @@
 import React from "react";
 import type { ReactElement } from "react";
-import ReactPDF from "@react-pdf/renderer";
+import * as ReactPDF from "@react-pdf/renderer";
 import type { DocumentProps } from "@react-pdf/renderer";
+
 import { supabase } from "@/lib/storage/client";
 import { ClassicTemplate } from "./templates/classic";
 import { ModernTemplate } from "./templates/modern";
 
 // Convenience alias for the document element type expected by renderToBuffer
 type PDFDocElement = ReactElement<DocumentProps>;
+
+// ---------------------------------------------------------------------------
+// renderPdfToBuffer — tries renderToBuffer first; streams as fallback.
+// renderToBuffer can be undefined after Next.js CJS/ESM interop in some
+// versions. renderToStream is always available and equally reliable.
+// ---------------------------------------------------------------------------
+
+async function renderPdfToBuffer(element: PDFDocElement): Promise<Buffer> {
+  // Prefer renderToBuffer (single call, simpler)
+  if (typeof ReactPDF.renderToBuffer === 'function') {
+    return ReactPDF.renderToBuffer(element);
+  }
+
+  // Fallback: renderToStream → collect chunks into a Buffer
+  console.warn('[Builder] renderToBuffer not found — falling back to renderToStream');
+  const stream = await ReactPDF.renderToStream(element);
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
+}
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -167,7 +192,7 @@ export async function generateResumePdf({
       : (React.createElement(ClassicTemplate, { data, isPro }) as PDFDocElement);
 
   // 2. Render to PDF buffer
-  const buffer = await ReactPDF.renderToBuffer(element);
+  const buffer = await renderPdfToBuffer(element);
 
   // 3. Generate unique storage path
   const filename = `resumes/${userId}/${Date.now()}.pdf`;

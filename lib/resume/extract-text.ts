@@ -1,118 +1,119 @@
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  if (buffer.length > 30 * 1024 * 1024) {
-    throw new Error('PDF too large (max 30MB)')
-  }
+  console.log('[PDF] Starting extraction, buffer size:', buffer.length)
 
-  // STEP 1: Try text extraction first (works for text-based PDFs)
-  let extractedText = ''
+  // Attempt 1: pdfjs-dist text extraction
   try {
-    // Use pdfjs-dist legacy build for serverless compatibility
-    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as string)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+    // The 'as string' cast is needed for Next.js module resolution
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    // @ts-ignore — GlobalWorkerOptions exists at runtime
+    if (pdfjsLib.GlobalWorkerOptions) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+    }
 
-    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
+    const data = new Uint8Array(buffer)
+    // @ts-ignore — getDocument exists at runtime
+    const loadingTask = pdfjsLib.getDocument({ data })
     const pdfDoc = await loadingTask.promise
-    const textPages: string[] = []
+    console.log('[PDF] Document loaded, pages:', pdfDoc.numPages)
 
+    const textParts: string[] = []
     for (let i = 1; i <= Math.min(pdfDoc.numPages, 3); i++) {
       const page = await pdfDoc.getPage(i)
       const content = await page.getTextContent()
-      const pageText = content.items
-        .map((item: { str?: string }) => item.str ?? '')
+      const pageText = (content.items as Array<{ str?: string }>)
+        .map((item) => item.str ?? '')
         .join(' ')
-      textPages.push(pageText)
+        .trim()
+      textParts.push(pageText)
     }
 
-    extractedText = textPages.join('\n\n').trim()
-    console.log('[PDF] Text extraction got', extractedText.length, 'chars')
+    const fullText = textParts.join('\n\n').trim()
+    console.log('[PDF] Text extraction result length:', fullText.length)
+    console.log('[PDF] Text preview:', fullText.slice(0, 100))
+
+    if (fullText.length >= 80) {
+      return fullText
+    }
+
+    console.log('[PDF] Text too short — PDF is image-based, switching to vision')
   } catch (textErr) {
-    console.warn('[PDF] Text extraction error:', textErr)
+    console.warn('[PDF] Text extraction threw:', textErr instanceof Error ? textErr.message : textErr)
+    console.log('[PDF] Falling back to vision model')
   }
 
-  // If we got enough text, use it
-  if (extractedText.length >= 100) {
-    return extractedText
-  }
-
-  // STEP 2: Text too short = image-based PDF. Fall back to vision model.
-  // Render first page to PNG, pass to vision model as base64.
-  console.log('[PDF] Text too short, falling back to vision model for image-based PDF')
-
+  // Attempt 2: Vision model (for image-based PDFs like Coursera/IBM/Meta certs)
   try {
-    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs' as string)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+    console.log('[PDF] Rendering first page to PNG for vision model')
 
-    const pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    // @ts-ignore
+    if (pdfjsLib.GlobalWorkerOptions) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+    }
+
+    const data = new Uint8Array(buffer)
+    // @ts-ignore
+    const pdfDoc = await pdfjsLib.getDocument({ data }).promise
     const page = await pdfDoc.getPage(1)
-
-    // Scale 2x for legibility
     const viewport = page.getViewport({ scale: 2.0 })
 
-    // Use @napi-rs/canvas (already in serverExternalPackages)
-    const { createCanvas } = await import('@napi-rs/canvas')
-    const canvas = createCanvas(Math.floor(viewport.width), Math.floor(viewport.height))
-    const ctx = canvas.getContext('2d')
+    console.log('[PDF] Viewport:', Math.floor(viewport.width), 'x', Math.floor(viewport.height))
 
-    await page.render({
-      canvasContext: ctx as unknown as CanvasRenderingContext2D,
-      viewport
-    }).promise
+    // Try @napi-rs/canvas first, fall back to node-canvas
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let canvas: { getContext: (type: '2d') => unknown; toBuffer: (type: string) => Buffer }
+    try {
+      const { createCanvas } = await import('@napi-rs/canvas')
+      canvas = createCanvas(Math.floor(viewport.width), Math.floor(viewport.height)) as unknown as typeof canvas
+    } catch {
+      // @napi-rs/canvas not available, try 'canvas' package
+      const { createCanvas } = await import('canvas')
+      canvas = createCanvas(Math.floor(viewport.width), Math.floor(viewport.height)) as unknown as typeof canvas
+    }
+
+    const ctx = canvas.getContext('2d')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await page.render({ canvasContext: ctx, viewport } as any).promise
 
     const pngBuffer = canvas.toBuffer('image/png')
     const base64 = pngBuffer.toString('base64')
+    console.log('[PDF] PNG rendered, size:', pngBuffer.length, 'bytes')
 
-    console.log('[PDF] Rendered to PNG, size:', pngBuffer.length, 'bytes')
-
-    // Pass to vision model
-    const OpenAI = (await import('openai')).default
+    // Call vision model
+    const { default: OpenAI } = await import('openai')
     const groq = new OpenAI({
       apiKey: process.env.GROQ_API_KEY ?? '',
       baseURL: 'https://api.groq.com/openai/v1'
     })
 
-    const visionResponse = await groq.chat.completions.create({
+    const response = await groq.chat.completions.create({
       model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-      max_tokens: 800,
+      max_tokens: 600,
       messages: [{
         role: 'user',
         content: [
           {
             type: 'image_url',
-            image_url: {
-              url: `data:image/png;base64,${base64}`,
-              detail: 'high'
-            }
+            image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' }
           },
           {
             type: 'text',
-            text: `This is a certificate or professional document rendered from a PDF.
-Extract all text content you can see:
-- Recipient/person name
-- Certificate or course name  
-- Issuing organization
-- Date completed
-- Any grade, score, or distinction
-- Course description or skills if visible
-Be thorough and accurate. Extract exactly what you see.`
+            text: 'This is a certificate. Extract all visible text: recipient name, course/certification name, issuing organization (company/university), date completed, any score or grade visible. Be thorough and accurate.'
           }
         ]
       }]
     })
 
-    const visionText = visionResponse.choices[0]?.message?.content ?? ''
-    if (visionText.length > 50) {
-      console.log('[PDF] Vision extracted:', visionText.slice(0, 200))
-      return visionText
-    }
+    const visionText = response.choices[0]?.message?.content ?? ''
+    console.log('[PDF] Vision model extracted:', visionText.slice(0, 200))
 
-    throw new Error('Vision model returned too little content')
+    if (visionText.length > 30) return visionText
+    throw new Error('Vision model returned too little')
 
   } catch (visionErr) {
-    console.error('[PDF] Vision fallback also failed:', visionErr)
+    console.error('[PDF] Vision also failed:', visionErr instanceof Error ? visionErr.message : visionErr)
     throw new Error(
-      'Could not read this PDF. It may be a complex image-based document. ' +
-      'Try uploading the certificate as a JPG or PNG image instead — ' +
-      'image uploads are processed more reliably.'
+      'Could not read this PDF. Try uploading the certificate as a JPG or PNG image instead.'
     )
   }
 }

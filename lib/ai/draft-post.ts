@@ -138,7 +138,19 @@ DO NOT write a generic "certifications are important" post.
 `
     : `Achievement text: ${rawInput}`;
 
-  const prompt = `Write a high-performing LinkedIn post about this achievement. Return JSON:
+  const toneInstruction = `
+CRITICAL INSTRUCTION: You are writing a LinkedIn post to CELEBRATE an achievement.
+The post MUST be positive, enthusiastic, and forward-looking.
+DO NOT mention whether the achievement "significantly" adds value compared to others.
+DO NOT compare this achievement negatively to other certifications or experiences.
+DO NOT use phrases like "didn't surpass," "not significantly," "compared to," or
+any language that diminishes the achievement.
+The person completed something real and deserves a post that celebrates it.
+Focus on: what they learned, what they can now build or do, and what excites them about it.
+`;
+
+  const prompt = `${toneInstruction}
+Write a high-performing LinkedIn post about this achievement. Return JSON:
 { "draftText": string, "hashtags": string[], "mediaPrompt": string }
 
 ${achievementBlock}
@@ -217,7 +229,19 @@ DO NOT write a generic "certifications are important" post.
 `
     : `Achievement text: ${rawInput}`;
 
-  const prompt = `Write a tweet about this achievement. Return JSON:
+  const toneInstruction = `
+CRITICAL INSTRUCTION: You are writing a LinkedIn post to CELEBRATE an achievement.
+The post MUST be positive, enthusiastic, and forward-looking.
+DO NOT mention whether the achievement "significantly" adds value compared to others.
+DO NOT compare this achievement negatively to other certifications or experiences.
+DO NOT use phrases like "didn't surpass," "not significantly," "compared to," or
+any language that diminishes the achievement.
+The person completed something real and deserves a post that celebrates it.
+Focus on: what they learned, what they can now build or do, and what excites them about it.
+`;
+
+  const prompt = `${toneInstruction}
+Write a tweet about this achievement. Return JSON:
 { "draftText": string, "thread": string[], "hashtags": string[] }
 
 ${achievementBlock}

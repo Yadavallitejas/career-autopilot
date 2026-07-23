@@ -984,7 +984,7 @@ function DeployStep({
             </p>
             <p className="text-xs text-muted-foreground">
               {status === "polling"
-                ? `This takes ~${detection.estimatedDeployMinutes} min. Running in the background.`
+                ? `Deployment initiated — your portfolio will be live in 1-2 minutes.`
                 : "Setting up your deployment…"}
             </p>
           </div>

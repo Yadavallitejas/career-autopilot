@@ -12,16 +12,20 @@ export interface DeployResult {
  * Currently only github-pages is fully implemented.
  * Other platforms (Vercel, Netlify, Render, Railway) throw — the QStash
  * handler catches the error and marks deployStatus='failed'.
+ *
+ * @param htmlContent - Complete HTML string for index.html. Required for
+ *   github-pages; ignored by other platforms.
  */
 export async function deployPortfolio(
   repoOwner: string,
   repoName: string,
   detection: DetectionResult,
-  accessToken: string
+  accessToken: string,
+  htmlContent: string
 ): Promise<DeployResult> {
   switch (detection.deployTarget) {
     case "github-pages": {
-      const result = await deployToGitHubPages(repoOwner, repoName, accessToken);
+      const result = await deployToGitHubPages(repoOwner, repoName, accessToken, htmlContent);
       return {
         url: result.url,
         platform: result.platform,
