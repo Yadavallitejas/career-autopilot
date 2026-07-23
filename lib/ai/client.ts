@@ -72,23 +72,31 @@ async function fetchFileAsBase64(url: string): Promise<{ base64: string; mimeTyp
 }
 
 /**
- * Extract plain text from a PDF via pdfjs-dist (already installed).
- * Used when sending a PDF to Groq, which has no native PDF support.
+ * Extract plain text from a PDF via pdf-parse — pure Node.js, works in Vercel serverless.
+ * Replaces the previous pdfjs-dist implementation which required browser canvas APIs.
  */
 async function extractTextFromPDF(fileUrl: string): Promise<string> {
-  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  // Fetch the PDF as a buffer
   const response = await fetch(fileUrl)
-  if (!response.ok) throw new Error(`PDF fetch failed: ${response.status}`)
-  const arrayBuffer = await response.arrayBuffer()
-  const pdf = await getDocument({ data: arrayBuffer }).promise
-
-  const pages: string[] = []
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
-    pages.push(content.items.map((item: any) => item.str).join(' '))
+  if (!response.ok) {
+    throw new Error(`Failed to fetch PDF: ${response.status}`)
   }
-  return pages.join('\n\n')
+  const arrayBuffer = await response.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  // Use pdf-parse — pure Node.js, works in Vercel serverless
+  // pdf-parse may resolve as CJS (function) or ESM — handle both
+  const pdfMod = await import('pdf-parse')
+  const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> =
+    (pdfMod as any).default ?? (pdfMod as any)
+  const data = await pdfParse(buffer)
+
+  if (!data.text || data.text.trim().length < 10) {
+    throw new Error('PDF appears to be image-only or empty. No extractable text found.')
+  }
+
+  console.log('[PDF] Extracted', data.text.length, 'chars from', data.numpages, 'pages')
+  return data.text
 }
 
 // ---------------------------------------------------------------------------
@@ -121,12 +129,27 @@ async function callGroq(
       })
       useVision = true
     } else if (opts.fileType === 'pdf') {
-      // Groq has no native PDF support — extract text first
-      const pdfText = await extractTextFromPDF(opts.fileUrl)
-      messages.push({
-        role: 'user',
-        content: `[Extracted PDF content:]\n${pdfText}\n\n[User message:]\n${prompt}`,
-      })
+      // Groq has no native PDF support — extract text first then inject into message
+      try {
+        const pdfText = await extractTextFromPDF(opts.fileUrl)
+        const enrichedMessage =
+          `[DOCUMENT CONTENT - extracted from uploaded PDF]\n` +
+          `${pdfText}\n\n` +
+          `[END OF DOCUMENT]\n\n` +
+          `[USER'S NOTE]\n${prompt}`
+        messages.push({ role: 'user', content: enrichedMessage })
+        console.log('[Groq] PDF text injected into message, chars:', pdfText.length)
+      } catch (pdfErr) {
+        // If text extraction fails (image-only PDF), tell the user clearly
+        console.error('[Groq] PDF extraction failed:', pdfErr)
+        messages.push({
+          role: 'user',
+          content: prompt +
+            '\n\n[Note: The uploaded PDF could not be read - ' +
+            'it may be a scanned image. Please describe the ' +
+            'certificate details in text above.]',
+        })
+      }
     } else {
       // document (Word etc.) — model receives the text prompt only
       messages.push({ role: 'user', content: prompt })

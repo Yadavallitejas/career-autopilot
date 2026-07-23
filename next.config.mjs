@@ -20,9 +20,6 @@ const nextConfig = {
       '@react-pdf/renderer',
       'pdf-parse',
       'mammoth',
-      'canvas',
-      '@napi-rs/canvas',
-      'pdfjs-dist',
     ],
     serverActions: {
       allowedOrigins: ["localhost:3000"],
@@ -30,15 +27,8 @@ const nextConfig = {
       bodySizeLimit: '10mb',
     },
   },
-  // Tell webpack not to bundle pdfjs-dist — it loads at runtime in Node.js serverless
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = [
-        ...(Array.isArray(config.externals) ? config.externals : [config.externals].filter(Boolean)),
-        'pdfjs-dist',
-        'canvas',
-      ];
-    }
+  // No special webpack externals needed — pdf-parse is a pure Node.js module
+  webpack: (config) => {
     return config;
   },
   async headers() {
