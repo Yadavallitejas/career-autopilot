@@ -4,8 +4,9 @@
  * Redirects the authenticated user to GitHub's OAuth authorization page.
  * Scopes: read:user, user:email, repo (needed to list private repos + enable Pages).
  *
- * The user's DB UUID is embedded in the `state` parameter so the callback
- * can match the token to the right DB record without an additional lookup.
+ * The `state` parameter is signed with HMAC-SHA256 so the callback can verify
+ * it has not been tampered with (prevents cross-user token injection attacks).
+ * Format: <dbUserId>.<nonce>.<hmac>
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
@@ -13,6 +14,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import crypto from 'crypto'
+import { signOAuthState } from '@/lib/github/oauth-state'
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { userId: clerkId } = auth()
@@ -38,10 +40,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
-  // Build a state token: dbUserId + random nonce (prevents CSRF)
-  // Format: <userId>.<random-hex>
+  // Build a tamper-proof state token: <dbUserId>.<nonce>.<hmac>
+  // The HMAC prevents an attacker from forging a state with a different userId.
   const nonce = crypto.randomBytes(16).toString('hex')
-  const state = `${user.id}.${nonce}`
+  const payload = `${user.id}.${nonce}`
+  const hmac = signOAuthState(payload)
+  const state = `${payload}.${hmac}`
 
   const params = new URLSearchParams({
     client_id: process.env.GITHUB_CLIENT_ID,

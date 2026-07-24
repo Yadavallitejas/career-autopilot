@@ -86,7 +86,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const buffer = Buffer.from(await file.arrayBuffer());
     let fileUrl: string;
     try {
-      fileUrl = await uploadFile(BUCKET, storagePath, buffer, mimeType);
+      fileUrl = await uploadFile(buffer, storagePath, mimeType, BUCKET);
     } catch (uploadErr) {
       console.error("[POST /api/upload] Supabase upload error:", uploadErr);
       return NextResponse.json({ error: "Upload failed" }, { status: 500 });

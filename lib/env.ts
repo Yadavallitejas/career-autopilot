@@ -23,6 +23,8 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  /** Default bucket for user file uploads (images, PDFs). Must exist in Supabase Storage. */
+  SUPABASE_STORAGE_BUCKET: z.string().min(1).default('career-autopilot-media'),
 
   // AI — at least one of GROQ_API_KEY or ANTHROPIC_API_KEY must be set
   ANTHROPIC_API_KEY: z.string().min(1).optional(),

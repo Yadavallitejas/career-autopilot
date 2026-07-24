@@ -6,7 +6,7 @@
  *   https://<supabase-url>/storage/v1/object/public/portfolios/<userId>/index.html
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { uploadFile } from '@/lib/storage/client'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,17 +49,6 @@ export interface ResumePortfolioData {
 }
 
 export type PortfolioTemplate = 'minimal' | 'developer' | 'creative'
-
-// ---------------------------------------------------------------------------
-// Supabase client (server-side, service role)
-// ---------------------------------------------------------------------------
-
-function getSupabase() {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Supabase env vars not configured')
-  return createClient(url, key)
-}
 
 // ---------------------------------------------------------------------------
 // HTML templates
@@ -301,27 +290,15 @@ export async function generatePortfolioFromResume(
     html = buildMinimalHtml(resumeData)
   }
 
-  // 2. Upload to Supabase Storage
-  const supabase = getSupabase()
+  // 2. Upload to Supabase Storage (dedicated portfolios bucket)
   const path = `${userId}/index.html`
-  const bucket = 'portfolios'
 
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(path, Buffer.from(html, 'utf-8'), {
-      contentType: 'text/html',
-      upsert: true,
-      cacheControl: '3600',
-    })
+  const publicUrl = await uploadFile(
+    Buffer.from(html, 'utf-8'),
+    path,
+    'text/html',
+    'career-autopilot-portfolios'
+  )
 
-  if (error) {
-    throw new Error(`Supabase upload failed: ${error.message}`)
-  }
-
-  // 3. Return public URL
-  const { data: urlData } = supabase.storage
-    .from(bucket)
-    .getPublicUrl(path)
-
-  return urlData.publicUrl
+  return publicUrl
 }

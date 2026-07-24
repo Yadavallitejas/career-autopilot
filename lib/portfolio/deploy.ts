@@ -5,6 +5,11 @@ export interface DeployResult {
   url: string;
   platform: string;
   deployedAt: Date;
+  /**
+   * 'live'      — deployment confirmed active (GitHub Pages build = 'built')
+   * 'deploying' — deployment initiated but not yet confirmed (still building)
+   */
+  buildStatus: "live" | "deploying";
 }
 
 /**
@@ -25,11 +30,17 @@ export async function deployPortfolio(
 ): Promise<DeployResult> {
   switch (detection.deployTarget) {
     case "github-pages": {
-      const result = await deployToGitHubPages(repoOwner, repoName, accessToken, htmlContent);
+      const result = await deployToGitHubPages(
+        repoOwner,
+        repoName,
+        accessToken,
+        htmlContent
+      );
       return {
         url: result.url,
         platform: result.platform,
         deployedAt: result.deployedAt,
+        buildStatus: result.buildStatus,
       };
     }
 

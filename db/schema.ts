@@ -57,6 +57,12 @@ export const users = pgTable(
     resumeSource: resumeSourceEnum("resume_source").default("none").notNull(),
     autoApplyResumeUpdates: boolean("auto_apply_resume_updates").default(false).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    // ── Admin / testing flags ────────────────────────────────────────────────
+    isAdmin: boolean("is_admin").default(false).notNull(),
+    /** Bypasses all monthly limits — useful for dev/QA accounts */
+    isTestAccount: boolean("is_test_account").default(false).notNull(),
+    /** null = use default (3 for free), -1 = unlimited */
+    monthlyLimitOverride: integer("monthly_limit_override"),
   },
   (t) => ({
     clerkIdIdx: index("users_clerk_id_idx").on(t.clerkId),

@@ -86,36 +86,51 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     ({ rawInput, fileUrl, fileType, fileName } = parsed.data);
 
-    // 4. Free tier check
-    if (user.plan === "free") {
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
+    // 4. Monthly limit check
+    // Order of precedence:
+    //   1. isTestAccount  → unlimited (bypass everything)
+    //   2. plan is pro/team → unlimited
+    //   3. monthlyLimitOverride === -1 → unlimited
+    //   4. monthlyLimitOverride > 0 → custom cap
+    //   5. default free-tier cap (FREE_TIER_MONTHLY_LIMIT)
+    const skipLimit = user.isTestAccount || user.plan !== "free";
 
-      const [monthlyResult] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(achievements)
-        .where(
-          and(
-            eq(achievements.userId, user.id),
-            eq(achievements.status, 'complete'),  // Only count completed ones
-            gte(achievements.createdAt, startOfMonth)
-          )
-        );
+    if (!skipLimit) {
+      const limitToUse =
+        user.monthlyLimitOverride === -1
+          ? Infinity
+          : (user.monthlyLimitOverride ?? FREE_TIER_MONTHLY_LIMIT);
 
-      const monthlyCount = monthlyResult?.count ?? 0;
+      if (limitToUse !== Infinity) {
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
 
-      if (monthlyCount >= FREE_TIER_MONTHLY_LIMIT) {
-        return NextResponse.json(
-          {
-            error: "Free tier limit reached",
-            code: "FREE_TIER_LIMIT",
-            used: monthlyCount,
-            limit: FREE_TIER_MONTHLY_LIMIT,
-            upgradeUrl: "/settings?tab=billing",
-          },
-          { status: 429 }
-        );
+        const [monthlyResult] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(achievements)
+          .where(
+            and(
+              eq(achievements.userId, user.id),
+              eq(achievements.status, "complete"), // Only count completed ones
+              gte(achievements.createdAt, startOfMonth)
+            )
+          );
+
+        const monthlyCount = monthlyResult?.count ?? 0;
+
+        if (monthlyCount >= limitToUse) {
+          return NextResponse.json(
+            {
+              error: "Free tier limit reached",
+              code: "FREE_TIER_LIMIT",
+              used: monthlyCount,
+              limit: limitToUse,
+              upgradeUrl: "/settings?tab=billing",
+            },
+            { status: 429 }
+          );
+        }
       }
     }
 
@@ -128,7 +143,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         const ext = mediaFile.type === "application/pdf" ? "pdf" : "jpg";
         const path = `achievements/${user.id}/${Date.now()}.${ext}`;
         const buffer = Buffer.from(await mediaFile.arrayBuffer());
-        mediaUrl = await uploadFile("post-media", path, buffer, mediaFile.type);
+        mediaUrl = await uploadFile(buffer, path, mediaFile.type, "post-media");
         mediaType = mediaFile.type === "application/pdf" ? "pdf" : "image";
         console.log(`[achievement] Media uploaded: ${mediaUrl}`);
       } catch (uploadErr) {

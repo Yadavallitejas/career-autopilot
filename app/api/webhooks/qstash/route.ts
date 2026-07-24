@@ -182,15 +182,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const { deployPortfolio } = await import("@/lib/portfolio/deploy");
       const result = await deployPortfolio(repoOwner, repoName, detection, ghToken, htmlContent);
 
+      console.log(
+        `[qstash/portfolio_deploy] Deployed → ${result.url} | buildStatus=${result.buildStatus}`
+      );
 
-      console.log(`[qstash/portfolio_deploy] Deployed → ${result.url}`);
-
-      // ── Persist success ───────────────────────────────────────────────────
+      // ── Persist — only mark 'live' when the Pages build is confirmed ────────
+      // If the build is still in progress, write 'deploying' so the client
+      // keeps polling /api/portfolio/deploy/status until confirmed.
       await db
         .update(portfolioConfig)
         .set({
           deployUrl: result.url,
-          deployStatus: "live",
+          deployStatus: result.buildStatus, // 'live' | 'deploying'
           deployPlatform: result.platform,
           projectType: detection.projectType,
           lastDeployed: new Date(),
@@ -198,8 +201,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         })
         .where(eq(portfolioConfig.userId, userId));
 
-      // ── Send success email (non-fatal) ────────────────────────────────────
-      if (userRow?.email) {
+      // ── Send success email only when actually live (non-fatal) ─────────────
+      if (result.buildStatus === "live" && userRow?.email) {
         const appUrl = env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
         sendEmail({
           to: userRow.email,

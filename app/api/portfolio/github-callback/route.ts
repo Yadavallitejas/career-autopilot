@@ -2,16 +2,27 @@
  * GET /api/portfolio/github-callback
  *
  * GitHub redirects here after user approves OAuth.
- * 1. Exchange `code` for an access token via GitHub's token endpoint.
- * 2. Resolve the DB user from the `state` parameter.
- * 3. Encrypt the token (AES-256-GCM) and upsert into `connected_accounts`.
- * 4. Redirect user back to /portfolio.
+ * 1. Parse and HMAC-verify the `state` parameter — rejects any forged state.
+ * 2. If a Clerk session is present, cross-check that the authenticated userId
+ *    matches the userId embedded in state (belt-and-suspenders).
+ * 3. Exchange `code` for an access token via GitHub's token endpoint.
+ * 4. Encrypt the token (AES-256-GCM) and upsert into `connected_accounts`.
+ * 5. Redirect user back to /portfolio.
+ *
+ * Security model:
+ *   state = "<dbUserId>.<nonce>.<hmac>"
+ *   hmac  = HMAC-SHA256(ENCRYPTION_KEY, "<dbUserId>.<nonce>")
+ *
+ *   An attacker cannot forge a valid state for a different userId without
+ *   knowing ENCRYPTION_KEY (which never leaves the server).
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { db } from '@/db'
 import { connectedAccounts, users } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { encrypt } from '@/lib/encryption'
+import { verifyOAuthState } from '@/lib/github/oauth-state'
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl
@@ -34,13 +45,64 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return portfolioUrlWithError('invalid_callback')
   }
 
-  // Validate state format: <userId>.<nonce>
-  const [dbUserId] = state.split('.')
-  if (!dbUserId) {
+  // ── 1. Parse and verify the HMAC-signed state ──────────────────────────────
+  //
+  // Expected format: <dbUserId>.<nonce>.<hmac>
+  // The HMAC covers "<dbUserId>.<nonce>" and was generated in github-auth
+  // using ENCRYPTION_KEY. Any tampering invalidates the HMAC.
+  const parts = state.split('.')
+  if (parts.length < 3) {
+    console.warn('[github-callback] State has wrong number of segments')
     return portfolioUrlWithError('invalid_state')
   }
 
-  // Confirm user exists
+  // Last segment is the HMAC; everything before it is the signed payload
+  const receivedHmac = parts[parts.length - 1]
+  const signedPayload = parts.slice(0, -1).join('.')
+  const dbUserId = parts[0]
+
+  if (!dbUserId || !receivedHmac || !signedPayload) {
+    return portfolioUrlWithError('invalid_state')
+  }
+
+  if (!verifyOAuthState(signedPayload, receivedHmac)) {
+    // State was forged or tampered — hard reject, no helpful hint
+    console.error(
+      '[github-callback] HMAC verification failed — possible state forgery attempt'
+    )
+    return portfolioUrlWithError('invalid_state_signature')
+  }
+
+  // ── 2. Belt-and-suspenders: cross-check Clerk session if present ───────────
+  //
+  // The callback is a public route because GitHub redirects here without a
+  // session cookie on some browsers. If a session IS present, we ensure the
+  // authenticated user is the same one who started the OAuth flow.
+  try {
+    const { userId: clerkId } = auth()
+    if (clerkId) {
+      // Resolve current authenticated user's DB record
+      const [sessionUser] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.clerkId, clerkId))
+        .limit(1)
+
+      if (sessionUser && sessionUser.id !== dbUserId) {
+        // Authenticated user does not match the state — likely a confused
+        // deputy or replay attempt. Abort immediately.
+        console.error(
+          `[github-callback] Session userId "${sessionUser.id}" does not match ` +
+          `state userId "${dbUserId}" — aborting to prevent cross-user contamination`
+        )
+        return portfolioUrlWithError('user_mismatch')
+      }
+    }
+  } catch {
+    // auth() throws outside of Clerk context in some edge cases — safe to ignore
+  }
+
+  // ── 3. Confirm user exists in DB ──────────────────────────────────────────
   const [user] = await db
     .select({ id: users.id })
     .from(users)
@@ -55,7 +117,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return portfolioUrlWithError('oauth_not_configured')
   }
 
-  // Exchange code → access token
+  // ── 4. Exchange code → access token ───────────────────────────────────────
   let accessToken: string
   let githubUserId: string | null = null
   let githubUsername: string | null = null
@@ -107,7 +169,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return portfolioUrlWithError('server_error')
   }
 
-  // Encrypt token before storage
+  // ── 5. Encrypt and upsert into connected_accounts (strict userId filter) ──
   let encryptedToken: string
   try {
     encryptedToken = encrypt(accessToken)
@@ -116,14 +178,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return portfolioUrlWithError('encryption_failed')
   }
 
-  // Upsert into connected_accounts
   try {
     const [existing] = await db
       .select({ id: connectedAccounts.id })
       .from(connectedAccounts)
       .where(
         and(
-          eq(connectedAccounts.userId, dbUserId),
+          eq(connectedAccounts.userId, user.id),   // ← strict: verified user only
           eq(connectedAccounts.platform, 'github')
         )
       )
@@ -137,10 +198,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           platformUserId: githubUserId,
           platformUsername: githubUsername,
         })
-        .where(eq(connectedAccounts.id, existing.id))
+        .where(
+          and(
+            eq(connectedAccounts.id, existing.id),
+            eq(connectedAccounts.userId, user.id)  // ← double-guard on UPDATE
+          )
+        )
     } else {
       await db.insert(connectedAccounts).values({
-        userId: dbUserId,
+        userId: user.id,                            // ← verified DB user, not raw state
         platform: 'github',
         accessToken: encryptedToken,
         platformUserId: githubUserId,
@@ -151,6 +217,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     console.error('[github-callback] DB upsert failed:', err)
     return portfolioUrlWithError('db_error')
   }
+
+  console.log(`[github-callback] GitHub account connected for userId=${user.id} (${githubUsername})`)
 
   // Success — redirect back to portfolio page
   portfolioUrl.searchParams.set('github_connected', '1')

@@ -153,7 +153,7 @@ export async function generateResumePdf({
   resumeRules = {},
 }: {
   userId: string;
-  templateId: "classic" | "modern";
+  templateId: "classic" | "modern" | "minimal";
   isPro: boolean;
   resumeData: ResumeData;
   resumeRules?: Record<string, unknown>;
@@ -185,7 +185,7 @@ export async function generateResumePdf({
     console.log("[Builder] Applied rules:", appliedRules);
   }
 
-  // 1. Select template component — cast to PDFDocElement to satisfy renderToBuffer
+  // 'minimal' is a UX label; it uses the classic renderer
   const element: PDFDocElement =
     templateId === "modern"
       ? (React.createElement(ModernTemplate, { data, isPro }) as PDFDocElement)

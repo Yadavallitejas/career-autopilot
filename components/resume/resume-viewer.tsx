@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useTransition, Fragment } from "react";
 import { format } from "date-fns";
@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { ResumeVersion } from "@/db/schema";
+import { BuildResumeModal } from "@/components/resume/build-resume-modal";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -111,7 +112,7 @@ function DiffModal({
               <span className="text-foreground">
                 {format(new Date(previous.createdAt), "MMM d, yyyy HH:mm")}
               </span>{" "}
-              →{" "}
+              â†’{" "}
               <span className="text-foreground">
                 {format(new Date(current.createdAt), "MMM d, yyyy HH:mm")}
               </span>
@@ -169,321 +170,6 @@ function DiffModal({
 }
 
 // ---------------------------------------------------------------------------
-// Build-from-scratch modal (multi-step form)
-// ---------------------------------------------------------------------------
-
-type BuildStep = "template" | "basic" | "experience" | "education" | "skills" | "done";
-
-function BuildResumeModal({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState<BuildStep>("template");
-  const [isPending, startTransition] = useTransition();
-  const [generateError, setGenerateError] = useState<string | null>(null);
-
-  const [selectedTemplate, setSelectedTemplate] = useState<"classic" | "modern">("classic");
-
-  const TEMPLATES = [
-    { id: "classic" as const, name: "Classic", description: "Single column, ATS-optimized" },
-    { id: "modern" as const, name: "Modern", description: "Two-column with sidebar" },
-  ];
-
-  const [basic, setBasic] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    location: "",
-    summary: "",
-  });
-  const [expText, setExpText] = useState("");
-  const [eduText, setEduText] = useState("");
-  const [skillsText, setSkillsText] = useState("");
-
-  const STEPS: BuildStep[] = ["template", "basic", "experience", "education", "skills"];
-  const stepIndex = STEPS.indexOf(step);
-
-  async function handleGenerate() {
-    setGenerateError(null);
-    startTransition(async () => {
-      const resumeData = {
-        fullName: basic.fullName,
-        email: basic.email,
-        phone: basic.phone || undefined,
-        location: basic.location || undefined,
-        summary: basic.summary || undefined,
-        templateId: selectedTemplate,
-        experience: expText
-          ? [{
-              company: "—",
-              title: "Professional Experience",
-              startDate: new Date().getFullYear().toString(),
-              bullets: expText
-                .split("\n")
-                .map((l) => l.trim())
-                .filter(Boolean),
-            }]
-          : [],
-        education: eduText
-          ? [{
-              institution: eduText.split("\n")[0] ?? "",
-              degree: eduText.split("\n")[1] ?? "Degree",
-              graduationYear: eduText.split("\n")[2] ?? new Date().getFullYear().toString(),
-            }]
-          : [],
-        certifications: [],
-        projects: [],
-        skills: skillsText
-          .split(/[\n,]/)
-          .map((s) => s.trim())
-          .filter(Boolean),
-      };
-
-      const res = await fetch("/api/resume/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(resumeData),
-      });
-
-      const json = await res.json() as { error?: string; details?: string[] };
-      if (res.ok) {
-        setStep("done");
-      } else {
-        const msg = json.details?.join("; ") ?? json.error ?? "Generation failed — please try again.";
-        setGenerateError(msg);
-      }
-    });
-  }
-
-  if (step === "done") {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div className="bg-card border border-border rounded-2xl w-full max-w-md p-8 text-center shadow-2xl">
-          <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 size={28} className="text-primary" />
-          </div>
-          <h2 className="text-lg font-bold text-foreground mb-2">
-            Resume generated!
-          </h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            Your resume PDF has been created. Refresh to see it in the preview.
-          </p>
-          <Button
-            onClick={() => {
-              onClose();
-              window.location.reload();
-            }}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
-          >
-            View resume
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">
-              Build your resume
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-              Step {stepIndex + 1} of {STEPS.length}: {step}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Step indicator */}
-        <div className="flex px-5 pt-4 gap-1.5">
-          {STEPS.map((s, idx) => (
-            <div
-              key={s}
-              className={cn(
-                "h-1 flex-1 rounded-full transition-colors",
-                idx <= stepIndex ? "bg-primary" : "bg-muted"
-              )}
-            />
-          ))}
-        </div>
-
-        {/* Form body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {step === "template" && (
-            <>
-              <p className="text-xs text-muted-foreground">Pick the layout for your PDF resume.</p>
-              <div className="grid grid-cols-2 gap-3">
-                {TEMPLATES.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedTemplate(t.id)}
-                    className={cn(
-                      "border rounded-lg p-4 text-left transition-colors",
-                      selectedTemplate === t.id
-                        ? "border-primary bg-accent"
-                        : "border-border hover:bg-muted"
-                    )}
-                  >
-                    <div className="font-medium text-sm text-foreground">{t.name}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{t.description}</div>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {step === "basic" && (
-            <>
-              {(
-                [
-                  ["fullName", "Full name *", "Jane Doe"],
-                  ["email", "Email *", "jane@example.com"],
-                  ["phone", "Phone", "+91 98765 43210"],
-                  ["location", "Location", "Bengaluru, India"],
-                ] as [keyof typeof basic, string, string][]
-              ).map(([field, label, placeholder]) => (
-                <label key={field} className="block">
-                  <span className="text-xs font-medium text-muted-foreground mb-1 block">
-                    {label}
-                  </span>
-                  <input
-                    type="text"
-                    value={basic[field]}
-                    onChange={(e) =>
-                      setBasic((b) => ({ ...b, [field]: e.target.value }))
-                    }
-                    placeholder={placeholder}
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  />
-                </label>
-              ))}
-              <label className="block">
-                <span className="text-xs font-medium text-muted-foreground mb-1 block">
-                  Professional summary
-                </span>
-                <textarea
-                  value={basic.summary}
-                  onChange={(e) =>
-                    setBasic((b) => ({ ...b, summary: e.target.value }))
-                  }
-                  placeholder="Software engineer with 5 years of experience..."
-                  rows={3}
-                  className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
-                />
-              </label>
-            </>
-          )}
-
-          {step === "experience" && (
-            <label className="block">
-              <span className="text-xs font-medium text-muted-foreground mb-1 block">
-                Experience bullet points (one per line)
-              </span>
-              <textarea
-                value={expText}
-                onChange={(e) => setExpText(e.target.value)}
-                placeholder={
-                  "Led migration of monolith to microservices, reducing deploy time by 60%\nBuilt CI/CD pipeline with GitHub Actions, cutting release cycles from 2 weeks to 2 days"
-                }
-                rows={8}
-                className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none font-mono text-xs leading-relaxed"
-              />
-            </label>
-          )}
-
-          {step === "education" && (
-            <label className="block">
-              <span className="text-xs font-medium text-muted-foreground mb-1 block">
-                Education (institution, degree, graduation year — one per line)
-              </span>
-              <textarea
-                value={eduText}
-                onChange={(e) => setEduText(e.target.value)}
-                placeholder={"IIT Bombay\nB.Tech Computer Science\n2019"}
-                rows={5}
-                className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none font-mono text-xs"
-              />
-            </label>
-          )}
-
-          {step === "skills" && (
-            <label className="block">
-              <span className="text-xs font-medium text-muted-foreground mb-1 block">
-                Skills (comma or newline separated)
-              </span>
-              <textarea
-                value={skillsText}
-                onChange={(e) => setSkillsText(e.target.value)}
-                placeholder={
-                  "TypeScript, React, Node.js, PostgreSQL, AWS, Docker, Kubernetes"
-                }
-                rows={5}
-                className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
-              />
-            </label>
-          )}
-        </div>
-
-        {/* Footer nav */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-border">
-          <div className="flex-1">
-            {generateError && (
-              <p className="text-xs text-destructive leading-snug">{generateError}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                stepIndex > 0
-                  ? setStep(STEPS[stepIndex - 1])
-                  : onClose()
-              }
-              className="text-muted-foreground"
-            >
-              {stepIndex === 0 ? "Cancel" : "Back"}
-            </Button>
-
-            {step === "skills" ? (
-              <Button
-                size="sm"
-                onClick={handleGenerate}
-                disabled={isPending || !basic.fullName || !basic.email}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 size={13} className="mr-1.5 animate-spin" />
-                    Generating…
-                  </>
-                ) : (
-                  "Generate PDF →"
-                )}
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                onClick={() => setStep(STEPS[stepIndex + 1])}
-                disabled={step === "basic" && (!basic.fullName || !basic.email)}
-                className="bg-muted hover:bg-muted/80 text-foreground"
-              >
-                Next
-                <ChevronRight size={13} className="ml-1" />
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Empty state
@@ -593,14 +279,14 @@ export function ResumeViewer({ versions, userId }: Props) {
       if (res.ok) {
         window.location.reload();
       } else {
-        alert("Revert failed — please try again.");
+        alert("Revert failed â€” please try again.");
       }
     } finally {
       setIsReverting(null);
     }
   }
 
-  // Sorted versions — current first, then by date desc
+  // Sorted versions â€” current first, then by date desc
   const sortedVersions = [...versions].sort((a, b) => {
     if (a.isCurrent) return -1;
     if (b.isCurrent) return 1;
@@ -644,9 +330,9 @@ export function ResumeViewer({ versions, userId }: Props) {
         onChange={handleUpload}
       />
 
-      {/* ── Split layout ──────────────────────────────────────────── */}
+      {/* â”€â”€ Split layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex flex-col md:flex-row h-full min-h-[calc(100vh-4rem)]">
-        {/* ── Left: version sidebar ─────────────────────────────── */}
+        {/* â”€â”€ Left: version sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <aside className="w-full md:w-[280px] md:min-w-[280px] border-b md:border-b-0 md:border-r border-border flex flex-col bg-card">
           <div className="px-4 py-3 border-b border-border">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -691,7 +377,7 @@ export function ResumeViewer({ versions, userId }: Props) {
 
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground/60">
-                    {format(new Date(v.createdAt), "HH:mm")} · {v.templateId}
+                    {format(new Date(v.createdAt), "HH:mm")} Â· {v.templateId}
                   </span>
                   {!v.isCurrent && (
                     <button
@@ -743,7 +429,7 @@ export function ResumeViewer({ versions, userId }: Props) {
           </div>
         </aside>
 
-        {/* ── Right: preview ────────────────────────────────────── */}
+        {/* â”€â”€ Right: preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {selected ? (
             <>
@@ -800,7 +486,7 @@ export function ResumeViewer({ versions, userId }: Props) {
                 </div>
               </div>
 
-              {/* ── Mobile: tabbed (History | Preview) ───────────────── */}
+              {/* â”€â”€ Mobile: tabbed (History | Preview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
               <div className="md:hidden flex-1">
                 <Tabs defaultValue="preview" className="h-full flex flex-col">
                   <TabsList className="mx-4 mt-3 mb-0 grid grid-cols-2 bg-muted">
@@ -834,7 +520,7 @@ export function ResumeViewer({ versions, userId }: Props) {
                     </div>
                   </TabsContent>
 
-                  {/* History tab — shows the version list inline on mobile */}
+                  {/* History tab â€” shows the version list inline on mobile */}
                   <TabsContent value="history" className="flex-1 overflow-y-auto">
                     <div className="divide-y divide-border">
                       {sortedVersions.map((v) => (
@@ -868,7 +554,7 @@ export function ResumeViewer({ versions, userId }: Props) {
                 </Tabs>
               </div>
 
-              {/* ── Desktop: inline iframe ────────────────────────────── */}
+              {/* â”€â”€ Desktop: inline iframe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
               <div className="hidden md:flex flex-1 bg-muted/10">
                 <iframe
                   key={selected.id}

@@ -35,33 +35,40 @@ export const supabase = {
 /**
  * Upload a file to Supabase Storage and return its public URL.
  *
- * @param bucket   Storage bucket name (must already exist in Supabase)
- * @param path     Destination path within the bucket, e.g. "resumes/userId/123.pdf"
- * @param file     File content as Buffer or Blob
+ * @param file         File content as Buffer or Blob
+ * @param path         Destination path within the bucket, e.g. "resumes/userId/123.pdf"
  * @param contentType  MIME type
- * @returns        Public URL of the uploaded file
+ * @param bucket       Storage bucket name — defaults to env.SUPABASE_STORAGE_BUCKET
+ * @returns            Public URL of the uploaded file
  */
 export async function uploadFile(
-  bucket: string,
-  path: string,
   file: Buffer | Blob,
-  contentType: string
+  path: string,
+  contentType: string,
+  bucket?: string
 ): Promise<string> {
-  const client = getStorageClient();
+  const bucketName = bucket ?? env.SUPABASE_STORAGE_BUCKET
+  const client = getStorageClient()
 
   const { error } = await client.storage
-    .from(bucket)
-    .upload(path, file, { contentType, upsert: false });
+    .from(bucketName)
+    .upload(path, file, { contentType, upsert: true })
 
   if (error) {
-    throw new Error(
-      `[storage] Upload failed (bucket=${bucket}, path=${path}): ${error.message}`
-    );
+    // Give specific, actionable error messages
+    if (error.message.includes('Bucket not found')) {
+      throw new Error(
+        `Storage bucket "${bucketName}" does not exist. ` +
+        `Create it in your Supabase dashboard → Storage → New bucket.`
+      )
+    }
+    throw new Error(`Upload failed: ${error.message}`)
   }
 
-  const { data } = client.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  const { data } = client.storage.from(bucketName).getPublicUrl(path)
+  return data.publicUrl
 }
+
 
 /**
  * Delete a file from Supabase Storage.

@@ -65,7 +65,8 @@ const ResumeDataSchema = z.object({
     )
     .default([]),
   skills: z.array(z.string()).default([]),
-  templateId: z.enum(['classic', 'modern']).default('classic'),
+  // 'minimal' is a UX label stored in DB; the PDF engine maps it to 'classic'
+  templateId: z.enum(['classic', 'modern', 'minimal']).default('classic'),
 })
 
 export type ValidatedResumeData = z.infer<typeof ResumeDataSchema>

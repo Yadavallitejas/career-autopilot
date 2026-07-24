@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams as useNextSearchParams } from 'next/navigation'
@@ -161,7 +161,7 @@ function Confetti() {
 }
 
 // ---------------------------------------------------------------------------
-// Resume Portfolio Generator (STEP 6 — no-GitHub path)
+// Resume Portfolio Generator (STEP 6 â€” no-GitHub path)
 // ---------------------------------------------------------------------------
 
 const TEMPLATES = [
@@ -223,7 +223,7 @@ function ResumePortfolioGenerator({
           Choose a template
         </h3>
         <p className="text-xs text-muted-foreground">
-          We'll generate a static HTML page from your resume and achievements — no GitHub needed.
+          We'll generate a static HTML page from your resume and achievements â€” no GitHub needed.
         </p>
       </div>
 
@@ -277,7 +277,7 @@ function ResumePortfolioGenerator({
         {isGenerating ? (
           <>
             <Loader2 size={15} className="animate-spin" />
-            Generating portfolio…
+            Generating portfolioâ€¦
           </>
         ) : (
           <>
@@ -289,24 +289,24 @@ function ResumePortfolioGenerator({
       </Button>
 
       <p className="text-[11px] text-muted-foreground text-center">
-        Generates instantly · Hosted on Supabase · Public URL ready to share
+        Generates instantly Â· Hosted on Supabase Â· Public URL ready to share
       </p>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// STATE 1 — No GitHub connected (two-tab layout)
+// STATE 1 â€” No GitHub connected (two-tab layout)
 // ---------------------------------------------------------------------------
 
 const GITHUB_SETUP_STEPS = [
   {
     title: 'Go to github.com/signup',
-    description: 'Create a free account — only takes 2 minutes.',
+    description: 'Create a free account â€” only takes 2 minutes.',
   },
   {
     title: 'Verify your email',
-    description: "GitHub sends you a confirmation link — check your inbox.",
+    description: "GitHub sends you a confirmation link â€” check your inbox.",
   },
   {
     title: 'Come back and connect',
@@ -324,13 +324,13 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
     const connected = searchParams.get('github_connected')
     const error = searchParams.get('github_error')
     if (connected === '1') {
-      setToast({ type: 'success', msg: 'GitHub connected successfully! Refreshing…' })
+      setToast({ type: 'success', msg: 'GitHub connected successfully! Refreshingâ€¦' })
       setTimeout(() => window.location.reload(), 1500)
     } else if (error) {
       const msgs: Record<string, string> = {
         github_denied: 'GitHub connection was cancelled.',
-        token_exchange_failed: 'Failed to get GitHub token — please try again.',
-        invalid_callback: 'Invalid OAuth callback — please try again.',
+        token_exchange_failed: 'Failed to get GitHub token â€” please try again.',
+        invalid_callback: 'Invalid OAuth callback â€” please try again.',
         oauth_not_configured: 'GitHub OAuth is not configured. Contact support.',
         server_error: 'Server error during connection. Please try again.',
         db_error: 'Failed to save connection. Please try again.',
@@ -414,7 +414,7 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
             onClick={() => setShowGuide(true)}
             className="w-full py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30 text-sm font-medium transition-colors"
           >
-            Create a GitHub account →
+            Create a GitHub account â†’
           </button>
         </div>
       )}
@@ -456,14 +456,14 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted font-medium text-sm transition-colors"
           >
             <Github size={16} />
-            Create GitHub account →
+            Create GitHub account â†’
           </a>
 
           <button
             onClick={() => setShowGuide(false)}
             className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            I already have GitHub — connect it →
+            I already have GitHub â€” connect it â†’
           </button>
         </div>
       )}
@@ -486,7 +486,7 @@ function ConnectGitHub({ onResumeGenerated }: { onResumeGenerated: (url: string)
 }
 
 // ---------------------------------------------------------------------------
-// WIZARD STEP 1 — Select repo
+// WIZARD STEP 1 â€” Select repo
 // ---------------------------------------------------------------------------
 
 function RepoSelector({
@@ -651,7 +651,7 @@ function RepoSelector({
 }
 
 // ---------------------------------------------------------------------------
-// WIZARD STEP 2 — Detect
+// WIZARD STEP 2 â€” Detect
 // ---------------------------------------------------------------------------
 
 function DetectStep({
@@ -689,7 +689,7 @@ function DetectStep({
         }
         setDetection(data);
       } catch {
-        setError("Detection failed — please try again");
+        setError("Detection failed â€” please try again");
       } finally {
         setLoading(false);
       }
@@ -709,7 +709,7 @@ function DetectStep({
         <div>
           <h2 className="text-sm font-semibold text-foreground">Reviewing {repo.name}</h2>
           <p className="text-xs text-muted-foreground">
-            Detecting project type…
+            Detecting project typeâ€¦
           </p>
         </div>
       </div>
@@ -717,7 +717,7 @@ function DetectStep({
       {loading ? (
         <div className="flex flex-col items-center gap-4 py-16">
           <Loader2 size={32} className="text-emerald-400 animate-spin" />
-          <p className="text-sm text-muted-foreground">Analysing repository structure…</p>
+          <p className="text-sm text-muted-foreground">Analysing repository structureâ€¦</p>
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -797,7 +797,7 @@ function DetectStep({
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   We couldn&apos;t detect a known framework. Deployment will attempt
-                  a static file deploy — it may not work as expected.
+                  a static file deploy â€” it may not work as expected.
                 </p>
               </div>
             </div>
@@ -847,7 +847,7 @@ function DetectStep({
               onClick={() => onConfirm(detection)}
               className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold"
             >
-              Deploy →
+              Deploy â†’
             </Button>
           </div>
         </div>
@@ -857,7 +857,7 @@ function DetectStep({
 }
 
 // ---------------------------------------------------------------------------
-// WIZARD STEP 3 — Deploying
+// WIZARD STEP 3 â€” Deploying
 // ---------------------------------------------------------------------------
 
 function DeployStep({
@@ -907,11 +907,11 @@ function DeployStep({
           return;
         }
 
-        // API returned 'deploying' — QStash job enqueued, start polling DB
+        // API returned 'deploying' â€” QStash job enqueued, start polling DB
         setStatus("polling");
 
         let attempts = 0;
-        const maxAttempts = 36; // 36 × 5s = 3 minutes
+        const maxAttempts = 36; // 36 Ã— 5s = 3 minutes
         pollRef.current = setInterval(async () => {
           attempts++;
           if (attempts > maxAttempts) {
@@ -929,7 +929,7 @@ function DeployStep({
               | { status: string; deployUrl?: string | null; deployError?: string | null }
               | { error: string };
 
-            if ("error" in pollData) return; // transient — keep polling
+            if ("error" in pollData) return; // transient â€” keep polling
 
             if (pollData.status === "live") {
               clearInterval(pollRef.current!);
@@ -944,9 +944,9 @@ function DeployStep({
               setDeployError(errMsg);
               onError(errMsg);
             }
-            // 'deploying' → keep polling
+            // 'deploying' â†’ keep polling
           } catch {
-            // transient network error — keep polling
+            // transient network error â€” keep polling
           }
         }, 5000);
       } catch {
@@ -980,12 +980,12 @@ function DeployStep({
           </div>
           <div>
             <p className="text-base font-semibold text-foreground mb-1">
-              {status === "enqueueing" ? "Starting deployment…" : `Deploying to ${platform}…`}
+              {status === "enqueueing" ? "Starting deploymentâ€¦" : `Deploying to ${platform}â€¦`}
             </p>
             <p className="text-xs text-muted-foreground">
               {status === "polling"
-                ? `Deployment initiated — your portfolio will be live in 1-2 minutes.`
-                : "Setting up your deployment…"}
+                ? `Deployment initiated â€” your portfolio will be live in 1-2 minutes.`
+                : "Setting up your deploymentâ€¦"}
             </p>
           </div>
           {/* Indeterminate progress bar */}
@@ -1005,7 +1005,7 @@ function DeployStep({
           <CheckCircle2 size={52} className="text-emerald-400" />
           <div>
             <p className="text-lg font-bold text-foreground mb-1">
-              Portfolio is live! 🎉
+              Portfolio is live! ðŸŽ‰
             </p>
             <a
               href={deployUrl}
@@ -1160,7 +1160,7 @@ function RepoWizard({ onComplete }: { onComplete: (url: string) => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// STATE 3 — Configured view
+// STATE 3 â€” Configured view
 // ---------------------------------------------------------------------------
 
 function ConfiguredView({
@@ -1172,44 +1172,124 @@ function ConfiguredView({
   onRedeploy: () => void;
   onChangeRepo: () => void;
 }) {
+  const isDeploying = config.deployStatus === "deploying";
+  const [checking, setChecking] = useState(false);
+  const [checkedStatus, setCheckedStatus] = useState<string | null>(null);
+
+  async function handleCheckStatus() {
+    setChecking(true);
+    setCheckedStatus(null);
+    try {
+      const res = await fetch("/api/portfolio/deploy/status");
+      const data = (await res.json()) as {
+        status?: string;
+        deployUrl?: string | null;
+      };
+      setCheckedStatus(data.status ?? null);
+      if (data.status === "live") {
+        // Page is now live — reload to get updated config from server
+        window.location.reload();
+      }
+    } catch {
+      setCheckedStatus("error");
+    } finally {
+      setChecking(false);
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-6">
-      {/* Live URL card */}
-      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
-            Live
-          </span>
+      {/* Status card — adapts based on deployStatus */}
+      {isDeploying ? (
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={14} className="text-amber-400 animate-pulse" />
+            <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+              Building
+            </span>
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-1 truncate">
+            {config.deployUrl ?? "Deployment in progress…"}
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            🔄 GitHub is building your site. This typically takes{" "}
+            <span className="font-medium text-foreground">2–5 minutes</span>.
+            Refresh in a moment to check if it&apos;s ready.
+          </p>
+          <div className="flex gap-3 flex-wrap">
+            <Button
+              size="sm"
+              onClick={handleCheckStatus}
+              disabled={checking}
+              className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold gap-2"
+            >
+              {checking ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <RefreshCw size={13} />
+              )}
+              Check status
+            </Button>
+            {config.deployUrl && (
+              <a
+                href={config.deployUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <Globe size={13} />
+                Try visiting
+                <ExternalLink size={11} />
+              </a>
+            )}
+          </div>
+          {checkedStatus && checkedStatus !== "live" && (
+            <p className="mt-3 text-xs text-amber-400">
+              {checkedStatus === "deploying"
+                ? "Still building — check again in a minute."
+                : checkedStatus === "error"
+                ? "Could not reach the server — try again."
+                : `Status: ${checkedStatus}`}
+            </p>
+          )}
         </div>
-        <h2 className="text-lg font-bold text-foreground mb-1 truncate">
-          {config.deployUrl}
-        </h2>
-        <p className="text-xs text-muted-foreground mb-4">
-          Your portfolio is publicly accessible
-        </p>
-        <div className="flex gap-3">
-          <a
-            href={config.deployUrl!}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-sm font-bold transition-colors"
-          >
-            <Globe size={14} />
-            Visit site
-            <ExternalLink size={12} />
-          </a>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRedeploy}
-            className="border-border text-foreground hover:bg-muted gap-2"
-          >
-            <RefreshCw size={13} />
-            Update deployment
-          </Button>
+      ) : (
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+              Live
+            </span>
+          </div>
+          <h2 className="text-lg font-bold text-foreground mb-1 truncate">
+            {config.deployUrl}
+          </h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Your portfolio is publicly accessible
+          </p>
+          <div className="flex gap-3">
+            <a
+              href={config.deployUrl!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-sm font-bold transition-colors"
+            >
+              <Globe size={14} />
+              Visit site
+              <ExternalLink size={12} />
+            </a>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRedeploy}
+              className="border-border text-foreground hover:bg-muted gap-2"
+            >
+              <RefreshCw size={13} />
+              Update deployment
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Details */}
       <div className="rounded-xl border border-border bg-muted/40 divide-y divide-border">
@@ -1460,7 +1540,7 @@ export function PortfolioConfig({
     window.location.reload()
   }
 
-  // Case 1: No GitHub connected — show two-tab UI
+  // Case 1: No GitHub connected â€” show two-tab UI
   if (!hasGitHub) {
     return (
       <>
