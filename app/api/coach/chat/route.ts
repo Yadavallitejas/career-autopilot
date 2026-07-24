@@ -4,7 +4,7 @@ export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { db } from '@/db'
 import {
   users,
@@ -16,7 +16,7 @@ import { eq, and, desc } from 'drizzle-orm'
 
 // ---------------------------------------------------------------------------
 // POST /api/coach/chat
-// Streams Claude Sonnet responses with full user context.
+// Streams Gemini Flash responses with full user context.
 // Body: { message: string; conversationId?: string; history?: {role, content}[] }
 // ---------------------------------------------------------------------------
 
@@ -144,67 +144,66 @@ Tone: encouraging but honest. Concise: 2–4 short paragraphs max unless they ex
 Format using markdown — bold key terms, use bullet lists for action items, use headers only when truly needed.
 If they haven't uploaded a resume or logged achievements yet, gently encourage them to do so first for the best experience.`
 
-  // ── Guard: need an API key ────────────────────────────────────────────────
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // ── Guard: need Gemini API key ────────────────────────────────────────────
+  const geminiKey = process.env.GEMINI_API_KEY
+  if (!geminiKey) {
     return NextResponse.json(
       { error: 'AI not configured — please contact support.' },
       { status: 503 }
     )
   }
 
-  // ── Build full message history for Claude ─────────────────────────────────
-  // Clip to last 20 turns to stay within context window
+  // ── Build Gemini chat history ──────────────────────────────────────────────
+  // Clip to last 20 turns to stay within context window.
+  // Gemini uses 'model' for assistant turns (not 'assistant').
   const clippedHistory = history.slice(-20)
-  const claudeMessages: Anthropic.MessageParam[] = [
-    ...clippedHistory.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
-    { role: 'user', content: message },
-  ]
+
+  const geminiHistory = clippedHistory.map((m) => ({
+    role: m.role === 'assistant' ? ('model' as const) : ('user' as const),
+    parts: [{ text: m.content }],
+  }))
 
   // ── Persist new user message to DB (fire-and-forget) ─────────────────────
   const updatedMessages = [
     ...clippedHistory,
     { role: 'user' as const, content: message },
   ]
-
   void persistConversation(user.id, conversationId, updatedMessages)
 
-  // ── Stream Claude response ─────────────────────────────────────────────────
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  // ── Stream Gemini response ─────────────────────────────────────────────────
+  const genAI = new GoogleGenerativeAI(geminiKey)
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: systemPrompt,
+    generationConfig: { maxOutputTokens: 900 },
+  })
 
   const stream = new ReadableStream({
     async start(controller) {
       let assistantText = ''
+      const encoder = new TextEncoder()
 
       try {
-        const claudeStream = anthropic.messages.stream({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 900,
-          system: systemPrompt,
-          messages: claudeMessages,
-        })
+        const chat = model.startChat({ history: geminiHistory })
+        const result = await chat.sendMessageStream(message)
 
-        for await (const chunk of claudeStream) {
-          if (
-            chunk.type === 'content_block_delta' &&
-            chunk.delta.type === 'text_delta'
-          ) {
-            assistantText += chunk.delta.text
-            controller.enqueue(new TextEncoder().encode(chunk.delta.text))
+        for await (const chunk of result.stream) {
+          const chunkText = chunk.text()
+          if (chunkText) {
+            assistantText += chunkText
+            controller.enqueue(encoder.encode(chunkText))
           }
         }
 
         controller.close()
 
-        // Persist the full assistant response after streaming completes
+        // Persist full assistant response after streaming completes
         void persistConversation(user.id, conversationId, [
           ...updatedMessages,
           { role: 'assistant' as const, content: assistantText },
         ])
       } catch (err) {
-        console.error('[coach/chat] Stream error:', err)
+        console.error('[coach/chat] Gemini stream error:', err)
         controller.error(err)
       }
     },
@@ -230,7 +229,6 @@ async function persistConversation(
 ) {
   try {
     if (conversationId) {
-      // Update existing conversation
       await db
         .update(coachConversations)
         .set({ messages: messages as never, updatedAt: new Date() })
@@ -241,7 +239,6 @@ async function persistConversation(
           )
         )
     } else {
-      // Insert new conversation (first message) — client should use the ID going forward
       await db.insert(coachConversations).values({
         userId,
         messages: messages as never,

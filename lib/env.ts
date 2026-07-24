@@ -26,9 +26,11 @@ const envSchema = z.object({
   /** Default bucket for user file uploads (images, PDFs). Must exist in Supabase Storage. */
   SUPABASE_STORAGE_BUCKET: z.string().min(1).default('career-autopilot-media'),
 
-  // AI — at least one of GROQ_API_KEY or ANTHROPIC_API_KEY must be set
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  // AI — at least one of GROQ_API_KEY or GEMINI_API_KEY must be set.
+  // Gemini Flash is 100% free (1 500 req/day) at aistudio.google.com — no card needed.
+  // Groq is 100% free at console.groq.com. Both can be set for redundancy.
   GROQ_API_KEY: z.string().min(1).optional(),
+  GEMINI_API_KEY: z.string().min(1).optional(),
 
   // Email
   RESEND_API_KEY: z.string().min(1).optional(),
@@ -54,13 +56,14 @@ const envSchema = z.object({
   // Encryption
   ENCRYPTION_KEY: z.string().min(32),
 }).superRefine((data, ctx) => {
-  if (!data.GROQ_API_KEY && !data.ANTHROPIC_API_KEY) {
+  if (!data.GROQ_API_KEY && !data.GEMINI_API_KEY) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message:
-        "At least one AI key is required: set GROQ_API_KEY (free, from console.groq.com) " +
-        "or ANTHROPIC_API_KEY in your .env.local",
-      path: ["GROQ_API_KEY"],
+        'Missing AI config. Need at least one:\n' +
+        '  GROQ_API_KEY   → free at console.groq.com\n' +
+        '  GEMINI_API_KEY → free at aistudio.google.com (handles PDFs!)',
+      path: ['GROQ_API_KEY'],
     });
   }
 });

@@ -152,7 +152,7 @@ function ProHeader({ userName }: { userName?: string }) {
 export default async function CoachPage() {
   const user = await requireUser()
 
-  const isPro = user.plan !== 'free'
+  const isPro = user.plan === 'pro' || user.plan === 'team'
 
   // Extract name from voiceProfile if available
   const vp = user.voiceProfile as { fullName?: string } | null

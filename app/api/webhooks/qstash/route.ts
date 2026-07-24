@@ -91,7 +91,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
       // ── Fetch user + GitHub token ─────────────────────────────────────────
       const [userRow] = await db
-        .select({ email: users.email })
+        .select({ email: users.email, voiceProfile: users.voiceProfile })
         .from(users)
         .where(eq(users.id, userId))
         .limit(1);
@@ -136,46 +136,90 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       console.log(`[qstash/portfolio_deploy] Detected: ${detection.projectType} → ${detection.deployTarget}`);
 
-      // ── Generate portfolio HTML from resume data ───────────────────────────
+      const [resumeRows, portfolioCfgRows, recentAchRows] = await Promise.all([
+        db
+          .select({
+            structuredData: resumeVersions.structuredData,
+            rawText: resumeVersions.rawText,
+          })
+          .from(resumeVersions)
+          .where(and(eq(resumeVersions.userId, userId), eq(resumeVersions.isCurrent, true)))
+          .limit(1),
+        db
+          .select({ template: portfolioConfig.template })
+          .from(portfolioConfig)
+          .where(eq(portfolioConfig.userId, userId))
+          .limit(1),
+        db
+          .select({
+            rawInput: achievements.rawInput,
+            resumeBullet: achievements.resumeBullet,
+            achievementType: achievements.achievementType,
+          })
+          .from(achievements)
+          .where(
+            and(
+              eq(achievements.userId, userId),
+              eq(achievements.status, "complete")
+            )
+          )
+          .orderBy(achievements.createdAt)
+          .limit(5),
+      ]);
+
+      const resumeRow = resumeRows[0];
+      const template = (portfolioCfgRows[0]?.template ?? "minimal") as
+        "minimal" | "developer" | "creative";
+
+      // Extract display name from voiceProfile if available
+      const vp = userRow?.voiceProfile as { fullName?: string } | null;
+      const displayName = vp?.fullName ?? userRow?.email?.split('@')[0] ?? 'Portfolio';
+
+      // ── Generate portfolio HTML using AI (always real content) ─────────────
       let htmlContent = "";
       try {
-        // Fetch current resume + portfolio template preference in parallel
-        const [resumeRows, portfolioCfgRows] = await Promise.all([
-          db
-            .select({ structuredData: resumeVersions.structuredData, rawText: resumeVersions.rawText })
-            .from(resumeVersions)
-            .where(and(eq(resumeVersions.userId, userId), eq(resumeVersions.isCurrent, true)))
-            .limit(1),
-          db
-            .select({ template: portfolioConfig.template })
-            .from(portfolioConfig)
-            .where(eq(portfolioConfig.userId, userId))
-            .limit(1),
-        ]);
+        const { generatePortfolioHTML } = await import("@/lib/portfolio/generate-html");
 
-        const resumeRow = resumeRows[0];
-        const template = (portfolioCfgRows[0]?.template ?? "minimal") as "minimal" | "developer" | "creative";
+        // Build the resume data object for the generator
+        const structuredFields = resumeRow?.structuredData as Record<string, unknown> | null;
 
-        if (resumeRow?.structuredData) {
-          // Use the AI-structured resume data to build a rich portfolio page
+        const resumeDataForGen = {
+          ...(structuredFields ?? {}),
+          rawText: resumeRow?.rawText ?? null,
+        };
+
+        htmlContent = await generatePortfolioHTML(
+          { name: displayName, email: userRow?.email ?? '' },
+          resumeDataForGen,
+          recentAchRows,
+          template
+        );
+
+        console.log(
+          `[qstash/portfolio_deploy] AI generated ${template} HTML (${htmlContent.length} chars)`
+        );
+      } catch (htmlErr) {
+        // Fall back to the static template builder if AI fails
+        console.warn("[qstash/portfolio_deploy] AI HTML generation failed, trying static builder:", htmlErr);
+
+        try {
           const { buildMinimalHtml, buildDeveloperHtml, buildCreativeHtml } =
             await import("@/lib/portfolio/generate-from-resume");
 
-          const data = resumeRow.structuredData as Parameters<typeof buildMinimalHtml>[0];
-          if (template === "developer") {
-            htmlContent = buildDeveloperHtml(data);
-          } else if (template === "creative") {
-            htmlContent = buildCreativeHtml(data);
+          if (resumeRow?.structuredData) {
+            const data = resumeRow.structuredData as Parameters<typeof buildMinimalHtml>[0];
+            htmlContent = template === "developer"
+              ? buildDeveloperHtml(data)
+              : template === "creative"
+              ? buildCreativeHtml(data)
+              : buildMinimalHtml(data);
+            console.log(`[qstash/portfolio_deploy] Static builder fallback succeeded (${htmlContent.length} chars)`);
           } else {
-            htmlContent = buildMinimalHtml(data);
+            console.error("[qstash/portfolio_deploy] No structured data for static builder — will push minimal placeholder");
           }
-          console.log(`[qstash/portfolio_deploy] Generated ${template} HTML (${htmlContent.length} chars)`);
-        } else {
-          console.log("[qstash/portfolio_deploy] No structured resume data — using placeholder HTML");
+        } catch (staticErr) {
+          console.error("[qstash/portfolio_deploy] Static builder also failed:", staticErr);
         }
-      } catch (htmlErr) {
-        console.warn("[qstash/portfolio_deploy] HTML generation failed (non-fatal):", htmlErr);
-        // Deployment continues — pushIndexHtmlToGhPages will use a placeholder
       }
 
       // ── Deploy ────────────────────────────────────────────────────────────
@@ -271,13 +315,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   logStep("Step 1: Ownership verified", pipelineStart);
 
-  // Log file attachment status immediately so it's visible even if extraction fails
-  const fileUrl  = achievement.fileUrl  ?? undefined;
+  // ── CRITICAL: Log full identity of THIS job so any contamination is visible ──
+  // Every field below comes exclusively from the DB row keyed by achievementId.
+  // If these values ever mismatch the QStash payload, that points to a DB issue.
+  const fileUrl  = achievement.fileUrl  ?? undefined;  // ONLY from this achievement's row
   const fileType = (achievement.fileType ?? undefined) as "image" | "pdf" | "document" | undefined;
-  console.log(
-    "[QStash] File attached:",
-    fileUrl ? `${fileType} — ${achievement.fileName ?? "unknown"}` : "none"
-  );
+
+  console.log("[QStash] Processing achievement:", {
+    id:           achievement.id,           // must equal achievementId from payload
+    userId:       achievement.userId,       // must equal userId from payload
+    rawInput:     achievement.rawInput.slice(0, 120),
+    fileUrl:      fileUrl ?? "none",
+    fileType:     fileType ?? "none",
+    fileName:     achievement.fileName ?? "none",
+    status:       achievement.status,
+    createdAt:    achievement.createdAt,
+  });
+
+  // Sanity check — these must always match. Log loudly if they ever diverge.
+  if (achievement.id !== achievementId) {
+    console.error(
+      `[QStash] CRITICAL: achievement.id (${achievement.id}) !== achievementId from payload (${achievementId})`
+    );
+  }
+  if (achievement.userId !== userId) {
+    console.error(
+      `[QStash] CRITICAL: achievement.userId (${achievement.userId}) !== userId from payload (${userId})`
+    );
+  }
+
+  // CRITICAL: enrichedInput is always scoped to THIS job — never reused across invocations
+  // (each serverless invocation has a fresh call stack; no module-level mutation here)
+  let enrichedInput: string = achievement.rawInput;  // start clean from current achievement
+  let fileContent: string | null = null;              // extracted text, if any
 
   // ─── Step 2: Fetch context ────────────────────────────────────────────────
   logStep("Step 2: Fetching resume + portfolio + user rules context", pipelineStart);
@@ -356,8 +426,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // ─── Step 2.5: Extract file content (new uploads) ───────────────────────
   logStep("Step 2.5: Extracting file content", pipelineStart);
 
+  // enrichedInput and fileContent are already declared above (after Step 1)
+  // with values strictly from this achievement — do NOT re-declare here.
   let extractedCertificate: ExtractedCertificate | null = null;
-  let enrichedInput = achievement.rawInput;
+
+  console.log("[QStash] File for THIS achievement:", {
+    achievementId: achievement.id,
+    fileUrl: fileUrl ?? "none",
+    fileType: fileType ?? "none",
+  });
 
   if (fileUrl && fileType) {
     try {
@@ -379,6 +456,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       // Build enriched context: structured cert fields + user's own description
       enrichedInput = buildEnrichedInput(achievement.rawInput, extractedCertificate);
+      // Capture extracted text for the pre-classify traceability log
+      fileContent = JSON.stringify(extractedCertificate);
 
       console.log(
         `[QStash] Extraction complete (${fileType}), enrichedInput length: ${enrichedInput.length}`
@@ -430,8 +509,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let classifyResult: Awaited<ReturnType<typeof classifyAchievement>>;
 
-  console.log('[Pipeline] Resume context length:', existingResumeText?.length ?? 0)
-  console.log('[Pipeline] Resume context preview:', existingResumeText?.slice(0, 200))
+  console.log("[Pipeline] Resume context length:", existingResumeText?.length ?? 0);
+  console.log("[Pipeline] Resume context preview:", existingResumeText?.slice(0, 200));
+
+  // ── Pre-AI verification log — every classify call must be traceable ──────
+  // If achievementId or inputPreview ever diverge from what was logged in
+  // Step 1, that is the contamination point.
+  console.log("[QStash] About to call classifyAchievement with:", {
+    achievementId:  achievement.id,
+    hasFile:        !!fileUrl,
+    fileType:       fileType ?? "none",
+    hasExtracted:   !!extractedCertificate,
+    fileContent:    fileContent ? `${fileContent.length} chars` : "none",
+    inputLength:    enrichedInput.length,
+    inputPreview:   enrichedInput.substring(0, 120),
+  });
 
   try {
     classifyResult = await classifyAchievement({
@@ -666,7 +758,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       // Generate updated PDF — works for both built and uploaded resumes
       const { generateResumePdf } = await import("@/lib/resume/builder");
-      const { fileUrl, rawText: newRawText } = await generateResumePdf({
+      // NOTE: named resumeFileUrl (not fileUrl) to avoid shadowing the outer
+      // fileUrl which holds THIS achievement's uploaded file URL (line 275).
+      const { fileUrl: resumeFileUrl, rawText: newRawText } = await generateResumePdf({
         userId,
         templateId,
         isPro,
@@ -682,7 +776,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       await db.insert(resumeVersions).values({
         userId,
-        fileUrl,
+        fileUrl: resumeFileUrl,  // the new resume PDF — NOT the achievement's fileUrl
         rawText: newRawText,
         structuredData: resumeData as unknown as Record<string, unknown>,
         isCurrent: true,
@@ -713,6 +807,157 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .where(eq(achievements.id, achievementId));
 
   logStep("Step 9: Achievement marked complete", pipelineStart);
+
+  // ─── Step 9.5: Auto-regenerate portfolio (non-fatal) ─────────────────────
+  // Only runs when the achievement is portfolio-worthy and the user has an
+  // existing portfolio deployment. Both Supabase and GitHub Pages are handled.
+  if (classifyResult.portfolioWorthy) {
+    logStep("Step 9.5: Checking for portfolio auto-regen", pipelineStart);
+    try {
+      const [pfCfgRow] = await db
+        .select({
+          deployPlatform: portfolioConfig.deployPlatform,
+          deployUrl: portfolioConfig.deployUrl,
+          githubRepoUrl: portfolioConfig.githubRepoUrl,
+          template: portfolioConfig.template,
+        })
+        .from(portfolioConfig)
+        .where(eq(portfolioConfig.userId, userId))
+        .limit(1);
+
+      if (pfCfgRow?.deployPlatform) {
+        console.log(
+          `[qstash/9.5] Portfolio regen triggered — platform: ${pfCfgRow.deployPlatform}`
+        );
+
+        // Fetch latest achievements for the regenerated page
+        const latestAchievements = await db
+          .select({
+            rawInput: achievements.rawInput,
+            resumeBullet: achievements.resumeBullet,
+            achievementType: achievements.achievementType,
+          })
+          .from(achievements)
+          .where(
+            and(
+              eq(achievements.userId, userId),
+              eq(achievements.status, "complete")
+            )
+          )
+          .orderBy(achievements.createdAt)
+          .limit(8);
+
+        const [latestResume] = await db
+          .select({
+            structuredData: resumeVersions.structuredData,
+            rawText: resumeVersions.rawText,
+          })
+          .from(resumeVersions)
+          .where(
+            and(
+              eq(resumeVersions.userId, userId),
+              eq(resumeVersions.isCurrent, true)
+            )
+          )
+          .limit(1);
+
+        const vp2 = user?.voiceProfile as { fullName?: string } | null;
+        const displayName2 =
+          vp2?.fullName ?? user?.email?.split("@")[0] ?? "Portfolio";
+
+        const { generatePortfolioHTML } = await import(
+          "@/lib/portfolio/generate-html"
+        );
+
+        const regenResumeData = {
+          ...(latestResume?.structuredData as Record<string, unknown> | null ?? {}),
+          rawText: latestResume?.rawText ?? null,
+        };
+
+        const portfolioTemplate = (pfCfgRow.template ?? "minimal") as
+          "minimal" | "developer" | "creative";
+
+        const freshHtml = await generatePortfolioHTML(
+          { name: displayName2, email: user?.email ?? "" },
+          regenResumeData,
+          latestAchievements,
+          portfolioTemplate
+        );
+
+        if (pfCfgRow.deployPlatform === "supabase") {
+          // ── Supabase Storage: re-upload HTML ───────────────────────────────
+          const { uploadFile } = await import("@/lib/storage/client");
+          const newUrl = await uploadFile(
+            Buffer.from(freshHtml, "utf-8"),
+            `${userId}/index.html`,
+            "text/html",
+            "career-autopilot-portfolios"
+          );
+          await db
+            .update(portfolioConfig)
+            .set({ deployUrl: newUrl, lastDeployed: new Date(), deployError: null })
+            .where(eq(portfolioConfig.userId, userId));
+
+          console.log("[qstash/9.5] Supabase portfolio regenerated:", newUrl);
+
+        } else if (pfCfgRow.deployPlatform === "github-pages" && pfCfgRow.githubRepoUrl) {
+          // ── GitHub Pages: push updated index.html to gh-pages branch ───────
+          const urlParts = pfCfgRow.githubRepoUrl.replace("https://github.com/", "").split("/");
+          const repoOwner = urlParts[0];
+          const repoName = urlParts[1];
+
+          if (repoOwner && repoName) {
+            const [ghAcc] = await db
+              .select({ accessToken: connectedAccounts.accessToken })
+              .from(connectedAccounts)
+              .where(
+                and(
+                  eq(connectedAccounts.userId, userId),
+                  eq(connectedAccounts.platform, "github")
+                )
+              )
+              .limit(1);
+
+            if (ghAcc?.accessToken) {
+              const { decrypt } = await import("@/lib/encryption");
+              const regenToken = decrypt(ghAcc.accessToken);
+              const { deployToGitHubPages } = await import(
+                "@/lib/portfolio/platforms/github-pages"
+              );
+              const regenResult = await deployToGitHubPages(
+                repoOwner,
+                repoName,
+                regenToken,
+                freshHtml
+              );
+              await db
+                .update(portfolioConfig)
+                .set({
+                  deployStatus: regenResult.buildStatus,
+                  lastDeployed: new Date(),
+                  deployError: null,
+                })
+                .where(eq(portfolioConfig.userId, userId));
+
+              console.log(
+                `[qstash/9.5] GitHub Pages portfolio regenerated: ${regenResult.url} (${regenResult.buildStatus})`
+              );
+            }
+          }
+        }
+
+        logStep("Step 9.5: Portfolio regenerated", pipelineStart);
+      } else {
+        console.log("[qstash/9.5] No portfolio config found — skipping regen");
+      }
+    } catch (regenErr) {
+      // Non-fatal — never fail the achievement pipeline for portfolio regen
+      console.error(
+        "[qstash/9.5] Portfolio regen failed (non-fatal):",
+        regenErr instanceof Error ? regenErr.message : regenErr
+      );
+    }
+  }
 
   // ─── Step 10: Send completion email ──────────────────────────────────────
   logStep("Step 10: Sending completion email", pipelineStart);

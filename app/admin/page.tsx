@@ -5,15 +5,12 @@ import {
   Users,
   Crown,
   Zap,
-  FileText,
   Share2,
   Search,
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
   Loader2,
-  ChevronDown,
-  ChevronUp,
   Server,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,11 +60,6 @@ interface DashboardData {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const PLAN_COLORS: Record<string, string> = {
-  free: "bg-zinc-800 text-zinc-300",
-  pro: "bg-amber-950 text-amber-300 border border-amber-700",
-  team: "bg-purple-950 text-purple-300 border border-purple-700",
-};
 
 const STATUS_COLORS: Record<string, string> = {
   complete: "text-emerald-400",
@@ -76,14 +68,25 @@ const STATUS_COLORS: Record<string, string> = {
   failed: "text-red-400",
 };
 
+async function applyAction(
+  id: string,
+  action: "grant_pro" | "set_free" | "mark_test" | "unmark_test"
+) {
+  const res = await fetch(`/api/admin/users/${id}/plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(data.error ?? "Action failed");
+  }
+}
+
+// Legacy update (used for isAdmin toggle only)
 async function updateUser(
   id: string,
-  patch: {
-    plan?: "free" | "pro" | "team";
-    isTestAccount?: boolean;
-    isAdmin?: boolean;
-    monthlyLimitOverride?: number | null;
-  }
+  patch: { isAdmin?: boolean }
 ) {
   const res = await fetch(`/api/admin/users/${id}/update`, {
     method: "POST",
@@ -127,6 +130,30 @@ function StatCard({
 // User row
 // ---------------------------------------------------------------------------
 
+function PlanBadge({ user }: { user: AdminUser }) {
+  if (user.plan === "pro" || user.plan === "team") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
+        <Crown size={10} />
+        {user.plan === "team" ? "Team" : "Pro"}
+      </span>
+    );
+  }
+  if (user.isTestAccount) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-yellow-950 text-yellow-300 border border-yellow-700">
+        <Zap size={10} />
+        Test
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-zinc-800 text-zinc-400">
+      Free
+    </span>
+  );
+}
+
 function UserRow({
   user,
   onUpdated,
@@ -135,54 +162,23 @@ function UserRow({
   onUpdated: () => void;
 }) {
   const [saving, setSaving] = useState(false);
-  const [limitInput, setLimitInput] = useState(
-    user.monthlyLimitOverride !== null
-      ? String(user.monthlyLimitOverride)
-      : ""
-  );
-  const [showLimit, setShowLimit] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  async function handlePlan(plan: "free" | "pro" | "team") {
+  async function handle(action: "grant_pro" | "set_free" | "mark_test" | "unmark_test") {
     setSaving(true);
+    setErr(null);
     try {
-      await updateUser(user.id, { plan });
+      await applyAction(user.id, action);
       onUpdated();
-    } catch {
-      alert("Failed to update plan");
+    } catch (e) {
+      setErr((e as Error).message);
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleTest(val: boolean) {
-    setSaving(true);
-    try {
-      await updateUser(user.id, { isTestAccount: val });
-      onUpdated();
-    } catch {
-      alert("Failed to update test flag");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSetLimit() {
-    const num = limitInput === "" ? null : parseInt(limitInput, 10);
-    if (limitInput !== "" && isNaN(num!)) {
-      alert("Enter a valid number (or -1 for unlimited)");
-      return;
-    }
-    setSaving(true);
-    try {
-      await updateUser(user.id, { monthlyLimitOverride: num });
-      onUpdated();
-      setShowLimit(false);
-    } catch {
-      alert("Failed to update limit");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const isPro = user.plan === "pro" || user.plan === "team";
+  const isTest = user.isTestAccount;
 
   return (
     <tr className="border-b border-zinc-800/60 hover:bg-zinc-900/40 transition-colors">
@@ -194,114 +190,86 @@ function UserRow({
         </div>
       </td>
 
-      {/* Plan */}
+      {/* Plan badge */}
       <td className="px-4 py-3">
-        <span
-          className={cn(
-            "inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase",
-            PLAN_COLORS[user.plan] ?? "bg-zinc-800 text-zinc-400"
-          )}
-        >
-          {user.plan}
-        </span>
+        <PlanBadge user={user} />
       </td>
 
       {/* Limit */}
       <td className="px-4 py-3 text-xs text-zinc-400">
-        {user.isTestAccount ? (
-          <span className="text-emerald-400 font-medium">∞ test</span>
+        {isPro ? (
+          <span className="text-emerald-400 font-medium">∞ Pro</span>
+        ) : isTest ? (
+          <span className="text-yellow-400 font-medium">∞ Test</span>
         ) : user.monthlyLimitOverride === -1 ? (
           <span className="text-emerald-400">∞ override</span>
         ) : user.monthlyLimitOverride !== null ? (
           <span className="text-amber-400">{user.monthlyLimitOverride}/mo</span>
-        ) : user.plan === "free" ? (
-          <span className="text-zinc-500">3/mo (default)</span>
         ) : (
-          <span className="text-zinc-600">—</span>
+          <span className="text-zinc-500">3/mo (free)</span>
         )}
-      </td>
-
-      {/* Test flag */}
-      <td className="px-4 py-3">
-        <button
-          onClick={() => handleTest(!user.isTestAccount)}
-          disabled={saving}
-          className={cn(
-            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none",
-            user.isTestAccount ? "bg-emerald-600" : "bg-zinc-700"
-          )}
-        >
-          <span
-            className={cn(
-              "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-              user.isTestAccount ? "translate-x-4" : "translate-x-0.5"
-            )}
-          />
-        </button>
       </td>
 
       {/* Actions */}
       <td className="px-4 py-3">
-        <div className="flex items-center gap-2 flex-wrap">
+        {err && (
+          <p className="text-[10px] text-red-400 mb-1">{err}</p>
+        )}
+        <div className="flex items-center gap-1.5 flex-wrap">
           {saving ? (
             <Loader2 size={13} className="animate-spin text-zinc-400" />
           ) : (
             <>
-              {user.plan !== "pro" && (
+              {/* Grant Pro — only when not already Pro */}
+              {!isPro && (
                 <button
-                  onClick={() => handlePlan("pro")}
-                  className="px-2 py-1 rounded text-[11px] font-semibold bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 transition-colors"
+                  onClick={() => handle("grant_pro")}
+                  title="Set plan=pro in DB — unlocks all Pro features"
+                  className="px-2 py-1 rounded text-[11px] font-semibold bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 transition-colors"
                 >
                   Grant Pro
                 </button>
               )}
-              {user.plan !== "free" && (
+
+              {/* Set Free — when Pro or Test */}
+              {(isPro || isTest) && (
                 <button
-                  onClick={() => handlePlan("free")}
+                  onClick={() => handle("set_free")}
+                  title="Reset to free plan with default limits"
                   className="px-2 py-1 rounded text-[11px] font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
                 >
                   Set Free
                 </button>
               )}
-              <button
-                onClick={() => setShowLimit((s) => !s)}
-                className="px-2 py-1 rounded text-[11px] font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors flex items-center gap-1"
-              >
-                Limit
-                {showLimit ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-              </button>
+
+              {/* Mark Test — when not already test and not Pro */}
+              {!isTest && !isPro && (
+                <button
+                  onClick={() => handle("mark_test")}
+                  title="Unlimited achievements, stays Free in UI"
+                  className="px-2 py-1 rounded text-[11px] font-semibold bg-yellow-950 hover:bg-yellow-900 text-yellow-300 border border-yellow-800 transition-colors"
+                >
+                  Mark Test
+                </button>
+              )}
+
+              {/* Remove Test */}
+              {isTest && (
+                <button
+                  onClick={() => handle("unmark_test")}
+                  title="Remove test flags, restore default limit"
+                  className="px-2 py-1 rounded text-[11px] font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-400 transition-colors"
+                >
+                  Remove Test
+                </button>
+              )}
             </>
           )}
         </div>
-
-        {showLimit && (
-          <div className="flex items-center gap-2 mt-2">
-            <input
-              type="number"
-              value={limitInput}
-              onChange={(e) => setLimitInput(e.target.value)}
-              placeholder="-1=∞, blank=default"
-              className="w-36 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-xs text-white focus:outline-none focus:border-zinc-500"
-            />
-            <button
-              onClick={handleSetLimit}
-              disabled={saving}
-              className="px-2 py-1 rounded text-[11px] font-semibold bg-blue-900 hover:bg-blue-800 text-blue-300 border border-blue-700 transition-colors"
-            >
-              Save
-            </button>
-            <button
-              onClick={() => setShowLimit(false)}
-              className="text-zinc-600 hover:text-zinc-400 text-[11px]"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
       </td>
 
       {/* Joined */}
-      <td className="px-4 py-3 text-xs text-zinc-600">
+      <td className="px-4 py-3 text-xs text-zinc-600 whitespace-nowrap">
         {formatDistanceToNow(new Date(user.createdAt), { addSuffix: true })}
       </td>
     </tr>
